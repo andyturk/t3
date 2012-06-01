@@ -14,20 +14,15 @@ extern "C" {
 #include "drivers/set_pinout.h"
 };
 
+UART0 uart0;
 UART1 uart1;
 
 extern "C" int main() {
   CPU::set_clock_rate_50MHz();
   uart1.configure();
+  uart0.configure();
 
-  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA); // UART0 will be on PA0 and PA1
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF); // LED is on PF3
-  SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0); // for debugging
-
-  GPIOPinConfigure(GPIO_PA0_U0RX);
-  GPIOPinConfigure(GPIO_PA1_U0TX);
-
-  GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 
   GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_4);
   GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_3); // LED

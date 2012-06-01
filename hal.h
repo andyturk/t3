@@ -30,6 +30,7 @@ class UART {
 class UART0 : public UART {
  public:
   UART0();
+  virtual void configure();
 };
 
 class UART1 : public UART {
