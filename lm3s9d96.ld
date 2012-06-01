@@ -28,7 +28,6 @@
 
 OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
-ENTRY(Reset_Handler)                                         /* entry Point */
 
 MEMORY {                                           /* memory map of LM3S9D96 */
     ROM (rx)  : ORIGIN = 0x00000000, LENGTH = 512K

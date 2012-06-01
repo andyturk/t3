@@ -90,11 +90,11 @@ interrupt_handlers = {
 
 template = string.Template("""
 extern "C" {
-void __attribute__ ((__interrupt__)) undefined_handler() {
+typedef void (*handler)();
+
+void /* __attribute__ ((__interrupt__)) */ undefined_handler() {
   for(;;);
 }
-
-typedef void (*handler)();
 
 ${decls}
 

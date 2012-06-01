@@ -17,8 +17,8 @@ QPCPP = ../qpcpp
 STELLARISWARE = ../StellarisWare
 
 C_SOURCES = $(wildcard *.c)
-CC_SOURCES = $(wildcard *.cc) 
-OBJECTS = $(notdir $(C_SOURCES:.c=.o) $(CC_SOURCES:.cc=.o))
+CC_SOURCES = $(wildcard *.cc) vector_table.cc
+OBJECTS = $(sort $(notdir $(C_SOURCES:.c=.o) $(CC_SOURCES:.cc=.o)))
 
 STELLARIS = ../StellarisWare
 
@@ -35,7 +35,7 @@ vpath %.c . $(TI_CMSIS)/Source
 default : $(NAME).bin
 
 clean :
-	rm -rf *.o *.bin *.elf *.asm *.a *.pp
+	rm -rf *.o *.bin *.elf *.asm *.a *.pp vector_table.cc
 
 %.pp : %.c
 	$(CC) -c $(CFLAGS) -std=c99 -E $< -o $@
