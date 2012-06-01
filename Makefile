@@ -52,6 +52,9 @@ clean :
 %.o : %.S
 	$(AS) $< -o $@
 
+vector_table.cc : generate_vector_table.py
+	python generate_vector_table.py lm3s9d96 > vector_table.cc
+
 $(NAME).bin : $(NAME).elf
 	$(OBJCOPY) -Obinary $< $@
 
