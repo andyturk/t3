@@ -1,18 +1,7 @@
 #include <stdint.h>
 #include "hal.h"
 
-#include "inc/hw_types.h"
-#include "inc/hw_memmap.h"
-#include "driverlib/rom_map.h"
-#include "driverlib/sysctl.h"
-#include "driverlib/systick.h"
-#include "driverlib/interrupt.h"
 #include "utils/uartstdio.h"
-#include "driverlib/gpio.h"
-#include "driverlib/uart.h"
-extern "C" {
-#include "drivers/set_pinout.h"
-};
 
 IOPin pf3('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);
