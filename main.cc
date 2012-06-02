@@ -24,10 +24,9 @@ extern "C" int main() {
   uart1.configure();
   uart0.configure();
   pf3.configure();
+  pc4.configure();
 
-  GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_4);
-
-  GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_4, 0); // assert reset on the pan1323 device
+  pc4.set_value(0); // assert reset on pan 1323
 
   UARTStdioInitExpClk(0, 115200); // UART0 is the console
   UARTprintf("console initialized\n");
@@ -38,11 +37,11 @@ extern "C" int main() {
 
   const uint32_t msec = 150;
 
-  GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_4, GPIO_PIN_4); // de-assert reset on the pan1323 device
+  pc4.set_value(1); // de-assert reset on pan1323
 
-  GPIOPinWrite(GPIO_PORTF_BASE, 0x08, 0x08); // turn on LED
+  pf3.set_value(1); // turn on LED
   CPU::delay(150);
-  GPIOPinWrite(GPIO_PORTF_BASE, 0x08, 0x00); // turn off LED
+  pf3.set_value(0); // turn off LED
 
   uart1.put(0x01);
   uart1.put(0x03);
@@ -52,6 +51,6 @@ extern "C" int main() {
   uint8_t response[10];
   for (int i=0; i < 7; ++i) response[i] = uart1.get();
 
-  GPIOPinWrite(GPIO_PORTF_BASE, 0x08, 0x08); // turn on LED
+  pf3.set_value(1); // turn on LED
   for(;;);
 }

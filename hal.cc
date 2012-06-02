@@ -88,6 +88,10 @@ void IOPin::configure() {
   }
 }
 
+void IOPin::set_value(bool value) {
+  GPIOPinWrite((uint32_t) base, mask, value ? mask : 0);
+}
+
 UART::UART(void *base, uint32_t id) :
   Peripheral(base, id)
 {
