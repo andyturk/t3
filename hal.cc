@@ -22,26 +22,72 @@ void CPU::delay(uint32_t msec) {
   SysCtlDelay((get_clock_rate()*msec)/(3*1000));
 }
 
+Peripheral::Peripheral(void *base) :
+  base(base)
+{
+}
+
+void Peripheral::configure() {
+}
+
+void Peripheral::initialize() {
+}
+
+uint32_t IOPort::id_from_name(char name) {
+  switch (name) {
+  case 'A' : return SYSCTL_PERIPH_GPIOA;
+  case 'B' : return SYSCTL_PERIPH_GPIOB;
+  case 'C' : return SYSCTL_PERIPH_GPIOC;
+  case 'D' : return SYSCTL_PERIPH_GPIOD;
+  case 'E' : return SYSCTL_PERIPH_GPIOE;
+  case 'F' : return SYSCTL_PERIPH_GPIOF;
+  case 'G' : return SYSCTL_PERIPH_GPIOG;
+  case 'H' : return SYSCTL_PERIPH_GPIOH;
+  case 'J' : return SYSCTL_PERIPH_GPIOJ;
+  default  : return 0;
+  }
+}
+
+IOPort::IOPort(char name) :
+  Peripheral(0),
+  id(id_from_name(name))
+{
+}
+
+void IOPort::configure() {
+  set_enable(true);
+}
+
+void IOPort::set_enable(bool value) {
+  if(value) SysCtlPeripheralEnable(id);
+  else      SysCtlPeripheralDisable(id);
+}
+
+IOPin::IOPin(char name, uint8_t mask) :
+  IOPort(name), mask(mask)
+{
+}
+
 UART::UART(void *base) :
-  uart_base(base)
+  Peripheral(base)
 {
 }
 
 void UART::enable(bool value) {
-  UARTEnable((uint32_t) uart_base);
+  UARTEnable((uint32_t) base);
 }
 
 void UART::set_baud(uint32_t bps) {
-  UARTConfigSetExpClk((uint32_t) uart_base, SysCtlClockGet(), bps,
+  UARTConfigSetExpClk((uint32_t) base, SysCtlClockGet(), bps,
                       UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE);
 }
 
 uint8_t UART::get() {
-  UARTCharGet((uint32_t) uart_base);
+  UARTCharGet((uint32_t) base);
 }
 
 void UART::put(uint8_t c) {
-  UARTCharPut((uint32_t) uart_base, c);
+  UARTCharPut((uint32_t) base, c);
 }
 
 UART0::UART0() :
@@ -76,6 +122,6 @@ void UART1::configure() {
 
   GPIOPinTypeUART(GPIO_PORTC_BASE, GPIO_PIN_6 | GPIO_PIN_7);
   GPIOPinTypeUART(GPIO_PORTJ_BASE, GPIO_PIN_6 | GPIO_PIN_3);
-  UARTFlowControlSet((uint32_t) uart_base, UART_FLOWCONTROL_TX | UART_FLOWCONTROL_RX);
+  UARTFlowControlSet((uint32_t) base, UART_FLOWCONTROL_TX | UART_FLOWCONTROL_RX);
 }
 

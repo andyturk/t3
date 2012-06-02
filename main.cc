@@ -14,6 +14,7 @@ extern "C" {
 #include "drivers/set_pinout.h"
 };
 
+IOPort port_f('F');
 UART0 uart0;
 UART1 uart1;
 
@@ -21,8 +22,7 @@ extern "C" int main() {
   CPU::set_clock_rate_50MHz();
   uart1.configure();
   uart0.configure();
-
-  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF); // LED is on PF3
+  port_f.configure();
 
   GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_4);
   GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_3); // LED

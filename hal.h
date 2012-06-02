@@ -9,13 +9,38 @@ class CPU {
   static void delay(uint32_t msec);
 };
 
+class Peripheral {
+ protected:
+  const void *base;
+
+ public:
+  Peripheral(void *base);
+  virtual void configure();
+  virtual void initialize();
+};
+
+class IOPort : public Peripheral {
+ protected:
+  const uint32_t id;
+  static uint32_t id_from_name(char name);
+
+ public:
+  IOPort(char name);
+  virtual void configure();
+  virtual void set_enable(bool value);
+};
+
+class IOPin : public IOPort {
+  const uint8_t mask;
+
+ public:
+  IOPin(char name, uint8_t mask);
+};
+
 typedef uint32_t *Port;
 typedef uint8_t Pin;
 
-class UART {
- protected:
-  void *uart_base;
-
+class UART : public Peripheral {
  public:
   UART(void *base);
 
