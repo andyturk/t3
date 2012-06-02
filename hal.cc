@@ -97,7 +97,7 @@ UART::UART(void *base, uint32_t id) :
 {
 }
 
-void UART::enable(bool value) {
+void UART::set_enable(bool value) {
   UARTEnable((uint32_t) base);
 }
 

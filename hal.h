@@ -47,7 +47,7 @@ class UART : public Peripheral {
 
   virtual void configure() = 0;
   virtual void initialize() {}
-          void enable(bool value);
+          void set_enable(bool value);
           void set_baud(uint32_t bps);
           uint8_t get();
           void put(uint8_t c);
