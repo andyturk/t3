@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <cstddef>
 
 void *operator new(size_t size) {
   for(;;);
