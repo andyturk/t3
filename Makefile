@@ -49,6 +49,9 @@ clean :
 %.o : %.cc
 	$(CC) -c $(CFLAGS) -fno-rtti -fno-exceptions $< -o $@
 
+%.S : %.cc
+	$(CC) -S -c $(CFLAGS) -fno-rtti -fno-exceptions $< -o $@
+
 %.o : %.S
 	$(AS) $< -o $@
 
