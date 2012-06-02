@@ -92,8 +92,70 @@ template = string.Template("""
 extern "C" {
 typedef void (*handler)();
 
-void /* __attribute__ ((__interrupt__)) */ undefined_handler() {
+union FAULTSTAT {
+  unsigned long w;
+  struct {
+    unsigned int IERR       : 1;
+    unsigned int DERR       : 1;
+    unsigned int _reserved0 : 1;
+    unsigned int MUSTKE     : 1;
+    unsigned int MSTKE      : 1;
+    unsigned int _reserved1 : 2;
+    unsigned int MMARV      : 1;
+    unsigned int IBUS       : 1;
+    unsigned int PRECISE    : 1;
+    unsigned int IMPRE      : 1;
+    unsigned int BUSTKE     : 1;
+    unsigned int BSTKE      : 1;
+    unsigned int _reserved2 : 2;
+    unsigned int BFARV      : 1;
+    unsigned int UNDEF      : 1;
+    unsigned int INVSTAT    : 1;
+    unsigned int INVPC      : 1;
+    unsigned int NOCP       : 1;
+    unsigned int _reserved3 : 4;
+    unsigned int UNALIGN    : 1;
+    unsigned int DIV0       : 1;
+    unsigned int _reserved4 : 6;
+  } __attribute__ ((packed));
+};
+
+struct exception_stack_frame {
+  void *r0;
+  void *r1;
+  void *r2;
+  void *r3;
+  void *r12;
+  void *lr;
+  void *pc;
+  union {
+    void *w;
+    struct {
+      unsigned int ISRNUM     : 7;
+      unsigned int _reserved0 : 3;
+      unsigned int ICI_IT0    : 6;
+      unsigned int _reserved1 : 8;
+      unsigned int THUMB      : 1;
+      unsigned int ICI_IT1    : 2;
+      unsigned int Q          : 1;
+      unsigned int V          : 1;
+      unsigned int C          : 1;
+      unsigned int Z          : 1;
+      unsigned int N          : 1;
+  } __attribute__ ((packed));
+ } xPSR;
+};
+
+void trap_exception(struct exception_stack_frame &frame) {
+  union FAULTSTAT &fault = *(union FAULTSTAT *) 0xe000ed28;
+  void *bus_fault_addr = *(void **) 0xe000ed38;
+
   for(;;);
+}
+
+void __attribute__ ((naked)) undefined_handler() {
+  __asm volatile ("mov r0, sp\\n"
+                  "bl trap_exception");
 }
 
 ${decls}
