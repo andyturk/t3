@@ -10,39 +10,40 @@ class CPU {
 };
 
 class Peripheral {
- protected:
-  const void *base;
-
  public:
-  Peripheral(void *base);
+  const void *base;
+  const uint32_t id;
+
+  Peripheral(void *base, uint32_t id);
   virtual void configure();
   virtual void initialize();
 };
 
 class IOPort : public Peripheral {
- protected:
-  const uint32_t id;
-  static uint32_t id_from_name(char name);
-
  public:
   IOPort(char name);
-  virtual void configure();
-  virtual void set_enable(bool value);
 };
 
 class IOPin : public IOPort {
   const uint8_t mask;
 
  public:
-  IOPin(char name, uint8_t mask);
-};
+  const enum pin_type {
+    INPUT,
+    OUTPUT,
+    LED,
+    UART
+  } type;
 
-typedef uint32_t *Port;
-typedef uint8_t Pin;
+  IOPin(char name, uint8_t pin, pin_type type);
+  virtual void configure();
+  void set_value(bool value);
+  bool get_value();
+};
 
 class UART : public Peripheral {
  public:
-  UART(void *base);
+  UART(void *base, uint32_t id);
 
   virtual void configure() = 0;
   virtual void initialize() {}

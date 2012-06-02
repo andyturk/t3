@@ -22,18 +22,19 @@ void CPU::delay(uint32_t msec) {
   SysCtlDelay((get_clock_rate()*msec)/(3*1000));
 }
 
-Peripheral::Peripheral(void *base) :
-  base(base)
+Peripheral::Peripheral(void *base, uint32_t id) :
+  base(base), id(id)
 {
 }
 
 void Peripheral::configure() {
+  SysCtlPeripheralEnable(id);
 }
 
 void Peripheral::initialize() {
 }
 
-uint32_t IOPort::id_from_name(char name) {
+static uint32_t gpio_id_from_name(char name) {
   switch (name) {
   case 'A' : return SYSCTL_PERIPH_GPIOA;
   case 'B' : return SYSCTL_PERIPH_GPIOB;
@@ -48,28 +49,47 @@ uint32_t IOPort::id_from_name(char name) {
   }
 }
 
+static void *gpio_base_from_name(char name) {
+  switch (name) {
+  case 'A' : return (void *) GPIO_PORTA_BASE;
+  case 'B' : return (void *) GPIO_PORTB_BASE;
+  case 'C' : return (void *) GPIO_PORTC_BASE;
+  case 'D' : return (void *) GPIO_PORTD_BASE;
+  case 'E' : return (void *) GPIO_PORTE_BASE;
+  case 'F' : return (void *) GPIO_PORTF_BASE;
+  case 'G' : return (void *) GPIO_PORTG_BASE;
+  case 'H' : return (void *) GPIO_PORTH_BASE;
+  case 'J' : return (void *) GPIO_PORTJ_BASE;
+  default  : return (void *) 0xffffffff;
+  }
+}
+
 IOPort::IOPort(char name) :
-  Peripheral(0),
-  id(id_from_name(name))
+  Peripheral(gpio_base_from_name(name), gpio_id_from_name(name))
 {
 }
 
-void IOPort::configure() {
-  set_enable(true);
-}
-
-void IOPort::set_enable(bool value) {
-  if(value) SysCtlPeripheralEnable(id);
-  else      SysCtlPeripheralDisable(id);
-}
-
-IOPin::IOPin(char name, uint8_t mask) :
-  IOPort(name), mask(mask)
+IOPin::IOPin(char name, uint8_t pin, pin_type type) :
+  IOPort(name), mask(0x01 << pin), type(type)
 {
 }
 
-UART::UART(void *base) :
-  Peripheral(base)
+void IOPin::configure() {
+  IOPort::configure();
+  switch (type) {
+  case OUTPUT :
+  case LED :
+    GPIOPinTypeGPIOOutput((uint32_t) base, mask);
+    break;
+
+  case UART :
+    GPIOPinTypeUART((uint32_t) base, mask);
+    break;
+  }
+}
+
+UART::UART(void *base, uint32_t id) :
+  Peripheral(base, id)
 {
 }
 
@@ -91,7 +111,7 @@ void UART::put(uint8_t c) {
 }
 
 UART0::UART0() :
-  UART((void *) UART0_BASE)
+  UART((void *) UART0_BASE, SYSCTL_PERIPH_UART0)
 {
 }
 
@@ -106,7 +126,7 @@ void UART0::configure() {
 }
 
 UART1::UART1() :
-  UART((void *) UART1_BASE)
+  UART((void *) UART1_BASE, SYSCTL_PERIPH_UART1)
 {
 }
 

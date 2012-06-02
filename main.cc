@@ -14,7 +14,8 @@ extern "C" {
 #include "drivers/set_pinout.h"
 };
 
-IOPort port_f('F');
+IOPin pf3('F', 3, IOPin::LED);
+IOPin pc4('C', 4, IOPin::OUTPUT);
 UART0 uart0;
 UART1 uart1;
 
@@ -22,10 +23,9 @@ extern "C" int main() {
   CPU::set_clock_rate_50MHz();
   uart1.configure();
   uart0.configure();
-  port_f.configure();
+  pf3.configure();
 
   GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_4);
-  GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_3); // LED
 
   GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_4, 0); // assert reset on the pan1323 device
 
