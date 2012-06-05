@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <cstddef>
 
-void *operator new(size_t size) {
+void __attribute__ ((noreturn)) *operator new(size_t size) {
   for(;;);
 }
 
