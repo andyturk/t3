@@ -4,45 +4,63 @@
 
 #include "utils/uartstdio.h"
 
-IOPin pf3('F', 3, IOPin::LED);
+IOPin led1('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);
 UART0 uart0;
 UART1 uart1;
-HCITransport pan1323(uart1, pc4);
+HCI pan1323(uart1, pc4);
 
 extern "C" int main() {
   CPU::set_clock_rate_50MHz();
-  pan1323.configure();
-  //uart1.configure();
+
+  CPU::set_master_interrupt_enable(false);
+
   uart0.configure();
-  pf3.configure();
-  //pc4.configure();
-
-  //pc4.set_value(0); // assert reset on pan 1323
-
   UARTStdioInitExpClk(0, 115200); // UART0 is the console
   UARTprintf("console initialized\n");
 
-  //uart1.initialize();
-  //uart1.set_baud(115200);
-  //uart1.set_enable(true);
+  led1.configure();
+  led1.initialize();
+  led1.set_value(0);
 
-  const uint32_t msec = 150;
+  pan1323.configure();
+  pan1323.initialize();
 
-  //pc4.set_value(1); // de-assert reset on pan1323
+  CPU::set_master_interrupt_enable(true);
 
-  //pf3.set_value(1); // turn on LED
-  //CPU::delay(150);
-  //pf3.set_value(0); // turn off LED
+  uint8_t reset_cmd[] = {0x01, 0x03, 0x0c, 0x00};
+  pan1323.write(reset_cmd, sizeof(reset_cmd));
 
-  uart1.put(0x01);
-  uart1.put(0x03);
-  uart1.put(0x0c);
-  uart1.put(0x00);
+  /*
+  uart1.write1(0x01);
+  uart1.write1(0x03);
+  uart1.write1(0x0c);
+  uart1.write1(0x00);
+  */
 
+  bool switch0 = false;
   uint8_t response[10];
-  for (int i=0; i < 7; ++i) response[i] = uart1.get();
+  int i;
 
-  pf3.set_value(1); // turn on LED
+  do {
+    size_t tx_r_cap = pan1323.tx.read_capacity();
+    size_t rx_r_cap = pan1323.rx.read_capacity();
+    bool can_read = uart1.can_read();
+    bool can_write = uart1.can_write();
+
+    if (switch0) uart1.pend_interrupt();
+      //for (i=0; i < 7; ++i) response[i] = uart1.read1();
+      //can_read = uart1.can_read();
+
+    led1.set_value(1);
+    led1.set_value(0);
+  } while (uart1.can_read());
+
+  led1.set_value(1); // turn on LED
+
   for(;;);
+}
+
+extern "C" void __attribute__ ((isr)) uart_1_handler() {
+  pan1323.interrupt_handler();
 }
