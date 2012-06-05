@@ -26,6 +26,7 @@ processor_exceptions = [
   'reserved_10',
   'svcall',
   'debug',
+  'reserved_13',
   'pendsv',
   'systick']
 
@@ -147,8 +148,8 @@ struct exception_stack_frame {
 };
 
 void trap_exception(struct exception_stack_frame &frame) {
-  union FAULTSTAT &fault = *(union FAULTSTAT *) 0xe000ed28;
-  void *bus_fault_addr = *(void **) 0xe000ed38;
+  union FAULTSTAT &fault __attribute__ ((unused)) = *(union FAULTSTAT *) 0xe000ed28;
+  void *bus_fault_addr __attribute__ ((unused)) = *(void **) 0xe000ed38;
 
   for(;;);
 }
