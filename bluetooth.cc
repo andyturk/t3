@@ -1,66 +1,12 @@
 #include "bluetooth.h"
 #include "register_defs.h"
 
-UARTBuffer::UARTBuffer(UART &uart) :
-  uart(uart),
-  rx(rx_storage, sizeof(rx_storage)),
-  tx(tx_storage, sizeof(tx_storage))
-{
-}
-
-void UARTBuffer::drain_rx_fifo() {
-  while (uart.can_read() && rx.write_capacity() > 0) {
-    rx.write1(uart.read1());
-  }
-}
-
-void UARTBuffer::fill_tx_fifo() {
-  while (uart.can_write() && tx.read_capacity() > 0) {
-    uint8_t byte;
-    tx.read1(byte);
-    uart.write1(byte);
-  }
-
-  // enable the tx interrupt if there's more data in the ringbuffer
-  uart.set_interrupt_sources(UART::RX | UART::ERROR | (tx.read_capacity() > 0 ? UART::TX : 0));
-}
-
-void UARTBuffer::interrupt_handler() {
-  uint32_t cause = uart.clear_interrupt_cause(UART::RX | UART::TX | UART::ERROR);
-
-  if (cause & UART::ERROR) {
-    error();
-  }
-
-  if (cause & UART::TX) {
-    fill_tx_fifo();
-  }
-
-  if (cause & UART::RX) {
-    drain_rx_fifo();
-    data_received();
-  }
-}
-
-size_t UARTBuffer::write(const uint8_t *buffer, size_t length) {
-  uart.set_interrupt_enable(false);
-  size_t count = tx.write(buffer, length);
-  fill_tx_fifo();
-  uart.set_interrupt_enable(true);
-  return count;
-}
-
-HCI::HCI(UART &uart, IOPin &shutdown) :
-  UARTBuffer(uart), shutdown(shutdown)
-{
-}
-
-void HCI::configure() {
+void Baseband::configure() {
   shutdown.configure();
   uart.configure();
 }
 
-void HCI::initialize() {
+void Baseband::initialize() {
   shutdown.initialize();
   shutdown.set_value(0); // assert SHUTDOWN
   uart.initialize();
@@ -72,5 +18,87 @@ void HCI::initialize() {
   CPU::delay(150); // wait 150 msec
 }
 
+void Baseband::send(const HCICommand &cmd, ...) {
+  va_list args;
+  va_start(args, cmd);
+
+  uart.write1(cmd.opcode &0xff);
+  uart.write1(cmd.opcode >> 8);
+
+  const char *p = cmd.send;
+  uint16_t u2;
+  uint32_t u3, u4;
+
+  while (*p) {
+    switch (*p++) {
+    case '1' :
+      uart.write1((uint8_t) va_arg(args, int));
+      break;
+      
+    case '2' :
+      u2 = (uint16_t) va_arg(args, int);
+      uart.write1(u2 & 0xff);
+      uart.write1(u2 >> 8);
+      break;
+
+    case '3' :
+      u3 = va_arg(args, uint32_t);
+      uart.write1(u3 & 0xff);
+      uart.write1(u3 >> 8);
+      uart.write1(u3 >> 16);
+      break;
+
+    case '4' :
+      u4 = va_arg(args, uint32_t);
+      uart.write1(u4 & 0xff);
+      uart.write1(u4 >> 8);
+      uart.write1(u4 >> 16);
+      uart.write1(u4 >> 24);
+      break;
+
+    case 'b' :
+      uart.write(va_arg(args, uint8_t *), 6);
+      break;
+
+    case 'x' :
+      uart.write(va_arg(args, uint8_t *), 16);
+      break;
+
+    case 'n' : {
+      const uint8_t *p, *name = va_arg(args, const uint8_t *);
+      for (p=name; *p; ++p);
+      size_t len = p-name;
+      uart.write(name, len);
+      while (len < 248) uart.write1(0);
+      break;
+    }
+      
+    case 'c' :
+      uart.write(va_arg(args, uint8_t *), 10);
+      break;
+
+    case 'i' :
+      uart.write(va_arg(args, uint8_t *), 240);
+      break;
+
+    case 'C' :
+      uart.write(va_arg(args, uint8_t *), 64);
+      break;
+
+    case '[' :
+    default :
+      for(;;);
+    }
+  }
+
+  va_end(args);
+}
+
+void Baseband::error_occurred(BufferedUART *u) {
+  for(;;);
+}
+
+void Baseband::data_received(BufferedUART *u) {
+}
 
 

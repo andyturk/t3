@@ -3,12 +3,13 @@
 #include "bluetooth.h"
 
 #include "utils/uartstdio.h"
+#include "hci.h"
 
 IOPin led1('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);
 UART0 uart0;
 UART1 uart1;
-HCI pan1323(uart1, pc4);
+Baseband pan1323(uart1, pc4);
 
 extern "C" int main() {
   CPU::set_clock_rate_50MHz();
@@ -29,7 +30,7 @@ extern "C" int main() {
   CPU::set_master_interrupt_enable(true);
 
   uint8_t reset_cmd[] = {0x01, 0x03, 0x0c, 0x00};
-  pan1323.write(reset_cmd, sizeof(reset_cmd));
+  pan1323.uart.write(reset_cmd, sizeof(reset_cmd));
 
   /*
   uart1.write1(0x01);
@@ -43,8 +44,8 @@ extern "C" int main() {
   int i;
 
   do {
-    size_t tx_r_cap = pan1323.tx.read_capacity();
-    size_t rx_r_cap = pan1323.rx.read_capacity();
+    //size_t tx_r_cap = pan1323.uart.tx.read_capacity();
+    //size_t rx_r_cap = pan1323.uart.rx.read_capacity();
     bool can_read = uart1.can_read();
     bool can_write = uart1.can_write();
 
@@ -62,5 +63,5 @@ extern "C" int main() {
 }
 
 extern "C" void __attribute__ ((isr)) uart_1_handler() {
-  pan1323.interrupt_handler();
+  uart1.interrupt_handler();
 }

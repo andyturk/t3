@@ -248,6 +248,60 @@ uint32_t UART::clear_interrupt_cause(uint32_t mask) {
   return value;
 }
 
+BufferedUART::BufferedUART(uint32_t n, uint8_t *rx, size_t rx_len, uint8_t *tx, size_t tx_len) :
+  UART(n), rx(rx, rx_len), tx(tx, tx_len), delegate(0)
+{
+}
+
+void BufferedUART::interrupt_handler() {
+  uint32_t cause = clear_interrupt_cause(UART::RX | UART::TX | UART::ERROR);
+
+  if (cause & UART::ERROR) {
+    if (delegate) delegate->error_occurred(this);
+  }
+
+  if (cause & UART::TX) {
+    fill_tx_fifo();
+  }
+
+  if (cause & UART::RX) {
+    drain_rx_fifo();
+
+    if (delegate) delegate->data_received(this);
+  }
+}
+
+size_t BufferedUART::write(const uint8_t *buffer, size_t length) {
+  set_interrupt_enable(false);
+  size_t count = tx.write(buffer, length);
+  fill_tx_fifo();
+  set_interrupt_enable(true);
+  return count;
+}
+
+void BufferedUART::drain_rx_fifo() {
+  while (UART::can_read() && rx.write_capacity() > 0) {
+    rx.write1(read1());
+  }
+}
+
+void BufferedUART::fill_tx_fifo() {
+  while (UART::can_write() && tx.read_capacity() > 0) {
+    uint8_t byte;
+    tx.read1(byte);
+    write1(byte);
+  }
+
+  // enable the tx interrupt if there's more data in the ringbuffer
+  set_interrupt_sources(UART::RX | UART::ERROR | (tx.read_capacity() > 0 ? UART::TX : 0));
+}
+
+void BufferedUART::Delegate::data_received(BufferedUART *u) {
+}
+
+void BufferedUART::Delegate::error_occurred(BufferedUART *u) {
+}
+
 UART0::UART0() : UART(0)
 {
 }
@@ -262,7 +316,8 @@ void UART0::configure() {
   GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 }
 
-UART1::UART1() : UART(1)
+UART1::UART1() :
+  BufferedUART(1, rx_buffer, sizeof(rx_buffer), tx_buffer, sizeof(tx_buffer))
 {
 }
 
