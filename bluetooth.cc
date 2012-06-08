@@ -1,6 +1,12 @@
 #include "bluetooth.h"
 #include "register_defs.h"
 
+namespace HCI {
+  #undef COMMAND
+  #define COMMAND(ogf,ocf,name,send,expect) HCI::Command name = {OPCODE(ogf,ocf), send};
+  #include "command_defs.h"
+};
+
 void Baseband::configure() {
   shutdown.configure();
   uart.configure();
@@ -18,10 +24,11 @@ void Baseband::initialize() {
   CPU::delay(150); // wait 150 msec
 }
 
-void Baseband::send(const HCICommand &cmd, ...) {
+void Baseband::send(const HCI::Command &cmd, ...) {
   va_list args;
   va_start(args, cmd);
 
+  uart.write1(HCI::COMMAND_PACKET);
   uart.write1(cmd.opcode &0xff);
   uart.write1(cmd.opcode >> 8);
 
