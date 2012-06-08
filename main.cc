@@ -29,8 +29,6 @@ extern "C" int main() {
   CPU::set_master_interrupt_enable(true);
 
   pan1323.send(HCI::RESET);
-  //uint8_t reset_cmd[] = {0x01, 0x03, 0x0c, 0x00};
-  //pan1323.uart.write(reset_cmd, sizeof(reset_cmd));
 
   while (uart1.rx.read_capacity() < 7) {
     led1.set_value(1);
