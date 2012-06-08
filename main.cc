@@ -3,7 +3,6 @@
 #include "bluetooth.h"
 
 #include "utils/uartstdio.h"
-#include "hci.h"
 
 IOPin led1('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);

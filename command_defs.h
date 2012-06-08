@@ -9,6 +9,7 @@ enum {
   TS = 0x06  // Testing
 };
 
+#define OPCODE(ogf,ocf) (((ogf) << 10) | (ocf))
 #endif
 
 // 1 - integer (1)
