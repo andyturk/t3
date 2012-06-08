@@ -31,10 +31,10 @@ namespace HCI {
 
 class Baseband : public BufferedUART::Delegate {
  public:
-  UART &uart;
+  BufferedUART &uart;
   IOPin &shutdown;
 
-  Baseband(UART &uart, IOPin &shutdown) : uart(uart), shutdown(shutdown) {}
+  Baseband(BufferedUART &uart, IOPin &shutdown) : uart(uart), shutdown(shutdown) {}
 
   void configure();
   void initialize();

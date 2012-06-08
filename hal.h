@@ -110,9 +110,6 @@ class RingBuffer {
     }
   }
 
-  /*
-   * 
-   */
   size_t read(uint8_t *dst, size_t n) {
     size_t read_count = 0;
 
@@ -132,6 +129,11 @@ class RingBuffer {
 
   inline bool read1(uint8_t &dst) {
     return read(&dst, 1) == 1;
+  }
+
+  uint8_t *write_ptr() {
+    assert(write_position < capacity);
+    return buffer + write_position;
   }
 
   size_t write(const uint8_t *src, size_t n) {
@@ -171,10 +173,10 @@ class BufferedUART : public UART {
   virtual size_t write(const uint8_t *buffer, size_t length);
   virtual void write1(uint8_t c);
   void interrupt_handler();
-
- protected:
   void drain_rx_fifo();
   void fill_tx_fifo();
+
+ protected:
   Delegate *delegate;
 };
 

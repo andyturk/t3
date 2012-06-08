@@ -28,9 +28,14 @@ void Baseband::send(const HCI::Command &cmd, ...) {
   va_list args;
   va_start(args, cmd);
 
-  uart.write1(HCI::COMMAND_PACKET);
-  uart.write1(cmd.opcode &0xff);
-  uart.write1(cmd.opcode >> 8);
+  uart.tx.write1(HCI::COMMAND_PACKET);
+  uart.tx.write1(cmd.opcode &0xff);
+  uart.tx.write1(cmd.opcode >> 8);
+
+  uint8_t &total_parameter_length = *uart.tx.write_ptr();
+  uart.tx.write1(0); // total_parameter_length
+
+  total_parameter_length = 0;
 
   const char *p = cmd.send;
   uint16_t u2;
@@ -39,57 +44,67 @@ void Baseband::send(const HCI::Command &cmd, ...) {
   while (*p) {
     switch (*p++) {
     case '1' :
-      uart.write1((uint8_t) va_arg(args, int));
+      uart.tx.write1((uint8_t) va_arg(args, int));
+      total_parameter_length += 1;
       break;
       
     case '2' :
       u2 = (uint16_t) va_arg(args, int);
-      uart.write1(u2 & 0xff);
-      uart.write1(u2 >> 8);
+      uart.tx.write1(u2 & 0xff);
+      uart.tx.write1(u2 >> 8);
+      total_parameter_length += 2;
       break;
 
     case '3' :
       u3 = va_arg(args, uint32_t);
-      uart.write1(u3 & 0xff);
-      uart.write1(u3 >> 8);
-      uart.write1(u3 >> 16);
+      uart.tx.write1(u3 & 0xff);
+      uart.tx.write1(u3 >> 8);
+      uart.tx.write1(u3 >> 16);
+      total_parameter_length += 3;
       break;
 
     case '4' :
       u4 = va_arg(args, uint32_t);
-      uart.write1(u4 & 0xff);
-      uart.write1(u4 >> 8);
-      uart.write1(u4 >> 16);
-      uart.write1(u4 >> 24);
+      uart.tx.write1(u4 & 0xff);
+      uart.tx.write1(u4 >> 8);
+      uart.tx.write1(u4 >> 16);
+      uart.tx.write1(u4 >> 24);
+      total_parameter_length += 4;
       break;
 
     case 'b' :
-      uart.write(va_arg(args, uint8_t *), 6);
+      uart.tx.write(va_arg(args, uint8_t *), 6);
+      total_parameter_length += 6;
       break;
 
     case 'x' :
-      uart.write(va_arg(args, uint8_t *), 16);
+      uart.tx.write(va_arg(args, uint8_t *), 16);
+      total_parameter_length += 16;
       break;
 
     case 'n' : {
       const uint8_t *p, *name = va_arg(args, const uint8_t *);
       for (p=name; *p; ++p);
       size_t len = p-name;
-      uart.write(name, len);
-      while (len < 248) uart.write1(0);
+      uart.tx.write(name, len);
+      while (len < 248) uart.tx.write1(0);
+      total_parameter_length += 248;
       break;
     }
       
     case 'c' :
-      uart.write(va_arg(args, uint8_t *), 10);
+      uart.tx.write(va_arg(args, uint8_t *), 10);
+      total_parameter_length += 10;
       break;
 
     case 'i' :
-      uart.write(va_arg(args, uint8_t *), 240);
+      uart.tx.write(va_arg(args, uint8_t *), 240);
+      total_parameter_length += 240;
       break;
 
     case 'C' :
-      uart.write(va_arg(args, uint8_t *), 64);
+      uart.tx.write(va_arg(args, uint8_t *), 64);
+      total_parameter_length += 64;
       break;
 
     case '[' :
@@ -98,6 +113,7 @@ void Baseband::send(const HCI::Command &cmd, ...) {
     }
   }
 
+  uart.fill_tx_fifo();
   va_end(args);
 }
 
