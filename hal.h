@@ -169,6 +169,7 @@ class BufferedUART : public UART {
 
   BufferedUART(uint32_t n, uint8_t *rx, size_t rx_len, uint8_t *tx, size_t tx_len);
   virtual size_t write(const uint8_t *buffer, size_t length);
+  virtual void write1(uint8_t c);
   void interrupt_handler();
 
  protected:

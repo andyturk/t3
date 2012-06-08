@@ -271,12 +271,17 @@ void BufferedUART::interrupt_handler() {
   }
 }
 
-size_t BufferedUART::write(const uint8_t *buffer, size_t length) {
+size_t BufferedUART::write(const uint8_t *src, size_t len) {
   set_interrupt_enable(false);
-  size_t count = tx.write(buffer, length);
+  len = tx.write(src, len);
   fill_tx_fifo();
   set_interrupt_enable(true);
-  return count;
+  return len;
+}
+
+void BufferedUART::write1(uint8_t c) {
+  if (!tx.write1(c)) for (;;);
+  fill_tx_fifo();
 }
 
 void BufferedUART::drain_rx_fifo() {
@@ -289,7 +294,7 @@ void BufferedUART::fill_tx_fifo() {
   while (UART::can_write() && tx.read_capacity() > 0) {
     uint8_t byte;
     tx.read1(byte);
-    write1(byte);
+    UART::write1(byte);
   }
 
   // enable the tx interrupt if there's more data in the ringbuffer
