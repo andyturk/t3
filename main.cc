@@ -32,30 +32,10 @@ extern "C" int main() {
   uint8_t reset_cmd[] = {0x01, 0x03, 0x0c, 0x00};
   pan1323.uart.write(reset_cmd, sizeof(reset_cmd));
 
-  /*
-  uart1.write1(0x01);
-  uart1.write1(0x03);
-  uart1.write1(0x0c);
-  uart1.write1(0x00);
-  */
-
-  bool switch0 = false;
-  uint8_t response[10];
-  int i;
-
-  do {
-    //size_t tx_r_cap = pan1323.uart.tx.read_capacity();
-    //size_t rx_r_cap = pan1323.uart.rx.read_capacity();
-    bool can_read = uart1.can_read();
-    bool can_write = uart1.can_write();
-
-    if (switch0) uart1.pend_interrupt();
-      //for (i=0; i < 7; ++i) response[i] = uart1.read1();
-      //can_read = uart1.can_read();
-
+  while (uart1.rx.read_capacity() < 7) {
     led1.set_value(1);
     led1.set_value(0);
-  } while (uart1.can_read());
+  }
 
   led1.set_value(1); // turn on LED
 
