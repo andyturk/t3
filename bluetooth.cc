@@ -16,11 +16,6 @@ Baseband::Baseband(BufferedUART &uart, IOPin &shutdown) :
   uart.set_delegate(this);
 }
 
-void Baseband::configure() {
-  shutdown.configure();
-  uart.configure();
-}
-
 void Baseband::initialize() {
   shutdown.initialize();
   shutdown.set_value(0); // assert SHUTDOWN

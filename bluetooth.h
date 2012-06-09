@@ -82,7 +82,6 @@ class Baseband :
 
   Baseband(BufferedUART &uart, IOPin &shutdown);
 
-  void configure();
   void initialize();
 
   void send(HCI::Command const &cmd, ...);
