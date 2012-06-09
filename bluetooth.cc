@@ -7,6 +7,15 @@ namespace HCI {
   #include "command_defs.h"
 };
 
+Baseband::Baseband(BufferedUART &uart, IOPin &shutdown) :
+  uart(uart),
+  shutdown(shutdown),
+  reader(uart.rx, *this)
+{
+  reader.start();
+  uart.set_delegate(this);
+}
+
 void Baseband::configure() {
   shutdown.configure();
   uart.configure();
@@ -22,6 +31,9 @@ void Baseband::initialize() {
 
   shutdown.set_value(1); // clear SHUTDOWN
   CPU::delay(150); // wait 150 msec
+}
+
+void Baseband::start() {
 }
 
 void Baseband::send(const HCI::Command &cmd, ...) {
@@ -122,6 +134,83 @@ void Baseband::error_occurred(BufferedUART *u) {
 }
 
 void Baseband::data_received(BufferedUART *u) {
+  reader.go();
 }
 
+void Baseband::event_packet(size_t size) {
+  extern IOPin led1;
 
+  led1.set_value(1);
+  uart.rx.advance(size);
+}
+
+void Baseband::ACL_packet(size_t size) {
+}
+
+void Baseband::synchronous_packet(size_t size) {
+}
+
+StateMachine::StateMachine() : state(0) {
+}
+
+void StateMachine::start() {
+  state = (State) &start;
+}
+
+UARTTransportReader::UARTTransportReader(RingBuffer &buf, Delegate &delegate) :
+  delegate(delegate),
+  input(buf)
+{
+}
+
+void UARTTransportReader::start() {
+  packet_size = 0;
+  read_packet_indicator();
+}
+
+void UARTTransportReader::bad_packet_indicator() {
+  state = (State) &bad_packet_indicator;
+}
+
+void UARTTransportReader::read_packet_indicator() {
+  state = (State) &read_packet_indicator;
+
+  if (input.read_capacity() > 0) {
+    uint8_t octet;
+    input.read1(octet); // consume packet indicator
+
+    switch (octet) {
+    case HCI::EVENT_PACKET :
+      read_event_code_and_length();
+      break;
+
+    case HCI::COMMAND_PACKET :
+    case HCI::ACL_PACKET :
+    case HCI::SYNCHRONOUS_DATA_PACKET :
+    default :
+      bad_packet_indicator();
+    }
+  }
+}
+
+void UARTTransportReader::read_event_code_and_length() {
+  state = (State) &read_event_code_and_length;
+
+  if (input.read_capacity() >= 2) {
+    packet_size = 2 + input.peek(1);
+    read_event_parameters();
+  }
+}
+
+void UARTTransportReader::read_event_parameters() {
+  state = (State) &read_event_parameters;
+
+  if (input.read_capacity() >= packet_size) {
+    event_packet_complete();
+  }
+}
+
+void UARTTransportReader::event_packet_complete() {
+  delegate.event_packet(packet_size);
+  read_packet_indicator();
+}

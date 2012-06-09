@@ -6,7 +6,7 @@
 #include "hal.h"
 
 namespace HCI {
-  enum packet_indicators {
+  enum packet_indicator {
     COMMAND_PACKET          = 0x01,
     ACL_PACKET              = 0x02,
     SYNCHRONOUS_DATA_PACKET = 0x03,
@@ -29,12 +29,58 @@ namespace HCI {
   #include "command_defs.h"
 };
 
-class Baseband : public BufferedUART::Delegate {
+class StateMachine {
+ public:
+  //  typedef void (StateMachine::*State)();
+  typedef void (*State)(StateMachine *);
+
+  StateMachine();
+  inline void go() {(*state)(this);}
+
+ protected:
+  State state;
+
+  virtual void start() = 0;
+};
+
+class UARTTransportReader : public StateMachine {
+ public:
+  class Delegate {
+  public:
+    virtual void event_packet(size_t size) = 0;
+    virtual void ACL_packet(size_t size) = 0;
+    virtual void synchronous_packet(size_t size) = 0;
+  };
+
+  UARTTransportReader(RingBuffer &input, Delegate &delegate);
+  virtual void start();
+
+ private:
+  Delegate &delegate;
+  RingBuffer &input;
+  size_t packet_size;
+
+  // operating states
+  void read_packet_indicator();
+  void read_event_code_and_length();
+  void read_event_parameters();
+  void event_packet_complete();
+
+  // error states
+  void bad_packet_indicator();
+};
+
+class Baseband :
+  public StateMachine,
+  public BufferedUART::Delegate,
+  public UARTTransportReader::Delegate
+{
  public:
   BufferedUART &uart;
   IOPin &shutdown;
+  UARTTransportReader reader;
 
-  Baseband(BufferedUART &uart, IOPin &shutdown) : uart(uart), shutdown(shutdown) {}
+  Baseband(BufferedUART &uart, IOPin &shutdown);
 
   void configure();
   void initialize();
@@ -42,4 +88,16 @@ class Baseband : public BufferedUART::Delegate {
   void send(HCI::Command const &cmd, ...);
   void data_received(BufferedUART *u);
   void error_occurred(BufferedUART *u);
+
+  // UARTTransportReader::Delegate methods
+  virtual void event_packet(size_t size);
+  virtual void ACL_packet(size_t size);
+  virtual void synchronous_packet(size_t size);
+
+  // StateMachine states
+  virtual void start();
+          void shutdown_asserted();
+          
+
 };
+
