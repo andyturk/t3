@@ -30,12 +30,14 @@ extern "C" int main() {
 
   pan1323.send(HCI::RESET);
 
+  /*
   while (uart1.rx.read_capacity() < 7) {
     led1.set_value(1);
     led1.set_value(0);
   }
 
   led1.set_value(1); // turn on LED
+  */
 
   for(;;);
 }
