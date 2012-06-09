@@ -301,12 +301,6 @@ void BufferedUART::fill_tx_fifo() {
   set_interrupt_sources(UART::RX | UART::ERROR | (tx.read_capacity() > 0 ? UART::TX : 0));
 }
 
-void BufferedUART::Delegate::data_received(BufferedUART *u) {
-}
-
-void BufferedUART::Delegate::error_occurred(BufferedUART *u) {
-}
-
 UART0::UART0() : UART(0)
 {
 }

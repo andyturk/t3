@@ -131,6 +131,19 @@ class RingBuffer {
     return read(&dst, 1) == 1;
   }
 
+  inline uint8_t peek(uint32_t offset) {
+    assert(offset < capacity);
+    offset += read_position;
+    if (offset > capacity) offset -= capacity;
+    return buffer[offset];
+  }
+
+  inline void advance(uint32_t offset) {
+    assert(offset < capacity);
+    read_position += offset;
+    if (read_position > capacity) read_position -= capacity;
+  }
+
   uint8_t *write_ptr() {
     assert(write_position < capacity);
     return buffer + write_position;
@@ -162,8 +175,8 @@ class BufferedUART : public UART {
  public:
   class Delegate {
   public:
-    virtual void data_received(BufferedUART *u);
-    virtual void error_occurred(BufferedUART *u);
+    virtual void data_received(BufferedUART *u) = 0;
+    virtual void error_occurred(BufferedUART *u) = 0;
   };
 
   RingBuffer rx;
@@ -175,6 +188,7 @@ class BufferedUART : public UART {
   void interrupt_handler();
   void drain_rx_fifo();
   void fill_tx_fifo();
+  void set_delegate(Delegate *delegate) {this->delegate = delegate;}
 
  protected:
   Delegate *delegate;
