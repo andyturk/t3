@@ -35,7 +35,14 @@ class StateMachine {
   typedef void (*State)(StateMachine *);
 
   StateMachine();
-  inline void go() {(*state)(this);}
+  inline void go() {
+    (*state)(this);
+  }
+
+  inline void go(State s) {
+    state = s;
+    (*state)(this);
+  }
 
  protected:
   State state;
@@ -47,9 +54,9 @@ class UARTTransportReader : public StateMachine {
  public:
   class Delegate {
   public:
-    virtual void event_packet(size_t size) = 0;
-    virtual void ACL_packet(size_t size) = 0;
-    virtual void synchronous_packet(size_t size) = 0;
+    virtual void event_packet(uint8_t code, size_t size) = 0;
+    virtual void acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size) = 0;
+    virtual void synchronous_packet(uint16_t handle, uint8_t status, size_t size) = 0;
   };
 
   UARTTransportReader(RingBuffer &input, Delegate &delegate);
@@ -59,6 +66,8 @@ class UARTTransportReader : public StateMachine {
   Delegate &delegate;
   RingBuffer &input;
   size_t packet_size;
+  uint8_t event_code, acl_bounary, acl_broadcast, synchronous_status;
+  uint16_t handle;
 
   // operating states
   void read_packet_indicator();
@@ -89,9 +98,9 @@ class Baseband :
   void error_occurred(BufferedUART *u);
 
   // UARTTransportReader::Delegate methods
-  virtual void event_packet(size_t size);
-  virtual void ACL_packet(size_t size);
-  virtual void synchronous_packet(size_t size);
+  virtual void event_packet(uint8_t code, size_t size);
+  virtual void acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size);
+  virtual void synchronous_packet(uint16_t handle, uint8_t status, size_t size);
 
   // StateMachine states
   virtual void start();

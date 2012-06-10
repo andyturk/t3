@@ -132,17 +132,17 @@ void Baseband::data_received(BufferedUART *u) {
   reader.go();
 }
 
-void Baseband::event_packet(size_t size) {
+void Baseband::event_packet(uint8_t code, size_t size) {
   extern IOPin led1;
 
   led1.set_value(1);
   uart.rx.advance(size);
 }
 
-void Baseband::ACL_packet(size_t size) {
+void Baseband::acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size) {
 }
 
-void Baseband::synchronous_packet(size_t size) {
+void Baseband::synchronous_packet(uint16_t handle, uint8_t status, size_t size) {
 }
 
 StateMachine::StateMachine() : state(0) {
@@ -160,52 +160,50 @@ UARTTransportReader::UARTTransportReader(RingBuffer &buf, Delegate &delegate) :
 
 void UARTTransportReader::start() {
   packet_size = 0;
-  read_packet_indicator();
+  state = (State) &read_packet_indicator;
 }
 
 void UARTTransportReader::bad_packet_indicator() {
-  state = (State) &bad_packet_indicator;
 }
 
 void UARTTransportReader::read_packet_indicator() {
-  state = (State) &read_packet_indicator;
-
   if (input.read_capacity() > 0) {
     uint8_t octet;
     input.read1(octet); // consume packet indicator
 
     switch (octet) {
     case HCI::EVENT_PACKET :
-      read_event_code_and_length();
+      go((State) &read_event_code_and_length);
       break;
 
     case HCI::COMMAND_PACKET :
     case HCI::ACL_PACKET :
     case HCI::SYNCHRONOUS_DATA_PACKET :
     default :
-      bad_packet_indicator();
+      go((State) &bad_packet_indicator);
     }
   }
 }
 
 void UARTTransportReader::read_event_code_and_length() {
-  state = (State) &read_event_code_and_length;
-
   if (input.read_capacity() >= 2) {
-    packet_size = 2 + input.peek(1);
-    read_event_parameters();
+    uint8_t octet;
+
+    input.read1(event_code);
+    input.read1(octet);
+    packet_size = (size_t) octet;
+
+    go((State) &read_event_parameters);
   }
 }
 
 void UARTTransportReader::read_event_parameters() {
-  state = (State) &read_event_parameters;
-
   if (input.read_capacity() >= packet_size) {
-    event_packet_complete();
+    go((State) &event_packet_complete);
   }
 }
 
 void UARTTransportReader::event_packet_complete() {
-  delegate.event_packet(packet_size);
-  read_packet_indicator();
+  delegate.event_packet(event_code, packet_size);
+  go((State) &read_packet_indicator);
 }
