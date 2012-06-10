@@ -29,50 +29,47 @@ namespace HCI {
   #include "command_defs.h"
 };
 
+template<class Event>
 class StateMachine {
  public:
-  typedef void (*State)(StateMachine *);
-
-  StateMachine(State s);
-
-  inline void go() {(*state)(this);}
-  inline void go(State s) {state = s; (*state)(this);}
+  typedef void (*State)(StateMachine *, Event);
+  StateMachine() : state(0) {}
+  StateMachine(State s) : state(s) {}
+  inline void go(Event e) {(*state)(this, e);}
+  inline void go(State s) {state = s;}
 
  protected:
   State state;
 };
 
-class UARTTransportReader : public StateMachine {
+class UARTTransportReader : public StateMachine<RingBuffer &> {
  public:
   class Delegate {
   public:
-    virtual void event_packet(uint8_t code, size_t size) = 0;
-    virtual void acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size) = 0;
-    virtual void synchronous_packet(uint16_t handle, uint8_t status, size_t size) = 0;
+    virtual void event_packet(UARTTransportReader &r) = 0;
+    virtual void acl_packet(UARTTransportReader &r) = 0;
+    virtual void synchronous_packet(UARTTransportReader &r) = 0;
   };
 
-  UARTTransportReader(RingBuffer &input);
+  UARTTransportReader();
   void set_delegate(Delegate *delegate);
-
- private:
-  Delegate *delegate;
-  RingBuffer &input;
   size_t packet_size;
   uint8_t event_code, acl_bounary, acl_broadcast, synchronous_status;
   uint16_t handle;
 
+ private:
+  Delegate *delegate;
+
   // operating states
-  void read_packet_indicator();
-  void read_event_code_and_length();
-  void read_event_parameters();
-  void event_packet_complete();
+  void read_packet_indicator(RingBuffer &b);
+  void read_event_code_and_length(RingBuffer &b);
+  void read_event_parameters(RingBuffer &b);
 
   // error states
-  void bad_packet_indicator();
+  void bad_packet_indicator(RingBuffer &b);
 };
 
 class Baseband :
-  public StateMachine,
   public BufferedUART::Delegate,
   public UARTTransportReader::Delegate
 {
@@ -90,31 +87,31 @@ class Baseband :
   void error_occurred(BufferedUART *u);
 
   // UARTTransportReader::Delegate methods
-  virtual void event_packet(uint8_t code, size_t size);
-  virtual void acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size);
-  virtual void synchronous_packet(uint16_t handle, uint8_t status, size_t size);
+  virtual void event_packet(UARTTransportReader &packet);
+  virtual void acl_packet(UARTTransportReader &packet);
+  virtual void synchronous_packet(UARTTransportReader &packet);
 
   // StateMachine states
   void module_requires_initialization();
 };
 
 class Pan1323Bootstrap :
-  public StateMachine,
+  public StateMachine<UARTTransportReader &>,
   public UARTTransportReader::Delegate
 {
   Baseband &baseband;
 
  public:
   Pan1323Bootstrap(Baseband &b);
+  void initialize();
 
   // UARTTransportReader::Delegate methods
-  virtual void event_packet(uint8_t code, size_t size);
-  virtual void acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size);
-  virtual void synchronous_packet(uint16_t handle, uint8_t status, size_t size);
+  virtual void event_packet(UARTTransportReader &packet);
+  virtual void acl_packet(UARTTransportReader &packet);
+  virtual void synchronous_packet(UARTTransportReader &packet);
 
   // StateMachine states
-  void module_requires_initialization();
-  void reset_pending();
+  void reset_pending(UARTTransportReader &packet);
 };
 
 

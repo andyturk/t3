@@ -8,10 +8,8 @@ namespace HCI {
 };
 
 Baseband::Baseband(BufferedUART &uart, IOPin &shutdown) :
-  StateMachine((State) &module_requires_initialization),
   uart(uart),
-  shutdown(shutdown),
-  reader(uart.rx)
+  shutdown(shutdown)
 {
   reader.set_delegate(this);
   uart.set_delegate(this);
@@ -127,32 +125,25 @@ void Baseband::error_occurred(BufferedUART *u) {
 }
 
 void Baseband::data_received(BufferedUART *u) {
-  reader.go();
+  reader.go(u->rx);
 }
 
-void Baseband::event_packet(uint8_t code, size_t size) {
+void Baseband::event_packet(UARTTransportReader &packet) {
   extern IOPin led1;
 
   led1.set_value(1);
-  uart.rx.advance(size);
+  uart.rx.advance(packet.packet_size);
 }
 
-void Baseband::acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size) {
+void Baseband::acl_packet(UARTTransportReader &packet) {
 }
 
-void Baseband::synchronous_packet(uint16_t handle, uint8_t status, size_t size) {
+void Baseband::synchronous_packet(UARTTransportReader &packet) {
 }
 
-void Baseband::module_requires_initialization() {
-}
-
-StateMachine::StateMachine(State s) : state(s) {
-}
-
-UARTTransportReader::UARTTransportReader(RingBuffer &buf) :
+UARTTransportReader::UARTTransportReader() :
   StateMachine((State) &read_packet_indicator),
-  delegate(0),
-  input(buf)
+  delegate(0)
 {
 }
 
@@ -160,10 +151,10 @@ void UARTTransportReader::set_delegate(Delegate *d) {
   delegate = d;
 }
 
-void UARTTransportReader::bad_packet_indicator() {
+void UARTTransportReader::bad_packet_indicator(RingBuffer &input) {
 }
 
-void UARTTransportReader::read_packet_indicator() {
+void UARTTransportReader::read_packet_indicator(RingBuffer &input) {
   if (input.read_capacity() > 0) {
     uint8_t octet;
     input.read1(octet); // consume packet indicator
@@ -171,6 +162,7 @@ void UARTTransportReader::read_packet_indicator() {
     switch (octet) {
     case HCI::EVENT_PACKET :
       go((State) &read_event_code_and_length);
+      go(input);
       break;
 
     case HCI::COMMAND_PACKET :
@@ -182,7 +174,7 @@ void UARTTransportReader::read_packet_indicator() {
   }
 }
 
-void UARTTransportReader::read_event_code_and_length() {
+void UARTTransportReader::read_event_code_and_length(RingBuffer &input) {
   if (input.read_capacity() >= 2) {
     uint8_t octet;
 
@@ -191,41 +183,37 @@ void UARTTransportReader::read_event_code_and_length() {
     packet_size = (size_t) octet;
 
     go((State) &read_event_parameters);
+    go(input);
   }
 }
 
-void UARTTransportReader::read_event_parameters() {
+void UARTTransportReader::read_event_parameters(RingBuffer &input) {
   if (input.read_capacity() >= packet_size) {
-    go((State) &event_packet_complete);
+    if (delegate) {
+      delegate->event_packet(*this);
+    } else {
+      input.advance(packet_size);
+    }
+
+    go((State) &read_packet_indicator);
+    go(input);
   }
 }
 
-void UARTTransportReader::event_packet_complete() {
-  if (delegate) {
-    delegate->event_packet(event_code, packet_size);
-  } else {
-    input.advance(packet_size);
-  }
-  go((State) &read_packet_indicator);
+Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) : baseband(b) {
 }
 
-Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) :
-  StateMachine((State) &module_requires_initialization),
-  baseband(b)
-{
+void Pan1323Bootstrap::event_packet(UARTTransportReader &packet) {
+  go(packet);
 }
 
-void Pan1323Bootstrap::event_packet(uint8_t code, size_t size) {
-  go();
+void Pan1323Bootstrap::acl_packet(UARTTransportReader &packet) {
 }
 
-void Pan1323Bootstrap::acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size) {
+void Pan1323Bootstrap::synchronous_packet(UARTTransportReader &packet) {
 }
 
-void Pan1323Bootstrap::synchronous_packet(uint16_t handle, uint8_t status, size_t size) {
-}
-
-void Pan1323Bootstrap::module_requires_initialization() {
+void Pan1323Bootstrap::initialize() {
   baseband.shutdown.set_value(0); // assert SHUTDOWN
   baseband.uart.set_baud(115200);
   baseband.uart.set_enable(true);
@@ -235,9 +223,9 @@ void Pan1323Bootstrap::module_requires_initialization() {
   CPU::delay(150); // wait 150 msec
   baseband.send(HCI::RESET);
 
-  state = (State) &reset_pending;
+  go((State) &reset_pending);
 }
 
-void Pan1323Bootstrap::reset_pending() {
-  
+void Pan1323Bootstrap::reset_pending(UARTTransportReader &packet) {
 }
+
