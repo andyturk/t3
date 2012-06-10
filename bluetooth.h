@@ -59,11 +59,12 @@ class UARTTransportReader : public StateMachine {
     virtual void synchronous_packet(uint16_t handle, uint8_t status, size_t size) = 0;
   };
 
-  UARTTransportReader(RingBuffer &input, Delegate &delegate);
+  UARTTransportReader(RingBuffer &input);
   virtual void start();
+  void set_delegate(Delegate *delegate);
 
  private:
-  Delegate &delegate;
+  Delegate *delegate;
   RingBuffer &input;
   size_t packet_size;
   uint8_t event_code, acl_bounary, acl_broadcast, synchronous_status;
@@ -105,7 +106,7 @@ class Baseband :
   // StateMachine states
   virtual void start();
           void shutdown_asserted();
-          
-
 };
+
+
 

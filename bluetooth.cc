@@ -10,8 +10,9 @@ namespace HCI {
 Baseband::Baseband(BufferedUART &uart, IOPin &shutdown) :
   uart(uart),
   shutdown(shutdown),
-  reader(uart.rx, *this)
+  reader(uart.rx)
 {
+  reader.set_delegate(this);
   reader.start();
   uart.set_delegate(this);
 }
@@ -152,15 +153,16 @@ void StateMachine::start() {
   state = (State) &start;
 }
 
-UARTTransportReader::UARTTransportReader(RingBuffer &buf, Delegate &delegate) :
-  delegate(delegate),
-  input(buf)
-{
+UARTTransportReader::UARTTransportReader(RingBuffer &buf) : delegate(0), input(buf)  {
 }
 
 void UARTTransportReader::start() {
   packet_size = 0;
   state = (State) &read_packet_indicator;
+}
+
+void UARTTransportReader::set_delegate(Delegate *d) {
+  delegate = d;
 }
 
 void UARTTransportReader::bad_packet_indicator() {
@@ -204,6 +206,10 @@ void UARTTransportReader::read_event_parameters() {
 }
 
 void UARTTransportReader::event_packet_complete() {
-  delegate.event_packet(event_code, packet_size);
+  if (delegate) {
+    delegate->event_packet(event_code, packet_size);
+  } else {
+    input.advance(packet_size);
+  }
   go((State) &read_packet_indicator);
 }
