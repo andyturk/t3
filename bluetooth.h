@@ -46,9 +46,9 @@ class UARTTransportReader : public StateMachine<RingBuffer &> {
  public:
   class Delegate {
   public:
-    virtual void event_packet(UARTTransportReader &r) = 0;
-    virtual void acl_packet(UARTTransportReader &r) = 0;
-    virtual void synchronous_packet(UARTTransportReader &r) = 0;
+    virtual void event_packet(UARTTransportReader &r) {};
+    virtual void acl_packet(UARTTransportReader &r) {};
+    virtual void synchronous_packet(UARTTransportReader &r) {};
   };
 
   UARTTransportReader();
@@ -88,8 +88,6 @@ class Baseband :
 
   // UARTTransportReader::Delegate methods
   virtual void event_packet(UARTTransportReader &packet);
-  virtual void acl_packet(UARTTransportReader &packet);
-  virtual void synchronous_packet(UARTTransportReader &packet);
 
   // StateMachine states
   void module_requires_initialization();
@@ -107,8 +105,6 @@ class Pan1323Bootstrap :
 
   // UARTTransportReader::Delegate methods
   virtual void event_packet(UARTTransportReader &packet);
-  virtual void acl_packet(UARTTransportReader &packet);
-  virtual void synchronous_packet(UARTTransportReader &packet);
 
   // StateMachine states
   void reset_pending(UARTTransportReader &packet);

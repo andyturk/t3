@@ -135,12 +135,6 @@ void Baseband::event_packet(UARTTransportReader &packet) {
   uart.rx.advance(packet.packet_size);
 }
 
-void Baseband::acl_packet(UARTTransportReader &packet) {
-}
-
-void Baseband::synchronous_packet(UARTTransportReader &packet) {
-}
-
 UARTTransportReader::UARTTransportReader() :
   StateMachine((State) &read_packet_indicator),
   delegate(0)
@@ -205,12 +199,6 @@ Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) : baseband(b) {
 
 void Pan1323Bootstrap::event_packet(UARTTransportReader &packet) {
   go(packet);
-}
-
-void Pan1323Bootstrap::acl_packet(UARTTransportReader &packet) {
-}
-
-void Pan1323Bootstrap::synchronous_packet(UARTTransportReader &packet) {
 }
 
 void Pan1323Bootstrap::initialize() {
