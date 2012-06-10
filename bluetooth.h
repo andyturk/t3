@@ -31,23 +31,15 @@ namespace HCI {
 
 class StateMachine {
  public:
-  //  typedef void (StateMachine::*State)();
   typedef void (*State)(StateMachine *);
 
-  StateMachine();
-  inline void go() {
-    (*state)(this);
-  }
+  StateMachine(State s);
 
-  inline void go(State s) {
-    state = s;
-    (*state)(this);
-  }
+  inline void go() {(*state)(this);}
+  inline void go(State s) {state = s; (*state)(this);}
 
  protected:
   State state;
-
-  virtual void start() = 0;
 };
 
 class UARTTransportReader : public StateMachine {
@@ -60,7 +52,6 @@ class UARTTransportReader : public StateMachine {
   };
 
   UARTTransportReader(RingBuffer &input);
-  virtual void start();
   void set_delegate(Delegate *delegate);
 
  private:
@@ -104,9 +95,26 @@ class Baseband :
   virtual void synchronous_packet(uint16_t handle, uint8_t status, size_t size);
 
   // StateMachine states
-  virtual void start();
-          void shutdown_asserted();
+  void module_requires_initialization();
 };
 
+class Pan1323Bootstrap :
+  public StateMachine,
+  public UARTTransportReader::Delegate
+{
+  Baseband &baseband;
+
+ public:
+  Pan1323Bootstrap(Baseband &b);
+
+  // UARTTransportReader::Delegate methods
+  virtual void event_packet(uint8_t code, size_t size);
+  virtual void acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size);
+  virtual void synchronous_packet(uint16_t handle, uint8_t status, size_t size);
+
+  // StateMachine states
+  void module_requires_initialization();
+  void reset_pending();
+};
 
 

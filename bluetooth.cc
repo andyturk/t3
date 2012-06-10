@@ -8,12 +8,12 @@ namespace HCI {
 };
 
 Baseband::Baseband(BufferedUART &uart, IOPin &shutdown) :
+  StateMachine((State) &module_requires_initialization),
   uart(uart),
   shutdown(shutdown),
   reader(uart.rx)
 {
   reader.set_delegate(this);
-  reader.start();
   uart.set_delegate(this);
 }
 
@@ -27,9 +27,6 @@ void Baseband::initialize() {
 
   shutdown.set_value(1); // clear SHUTDOWN
   CPU::delay(150); // wait 150 msec
-}
-
-void Baseband::start() {
 }
 
 void Baseband::send(const HCI::Command &cmd, ...) {
@@ -146,19 +143,17 @@ void Baseband::acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, 
 void Baseband::synchronous_packet(uint16_t handle, uint8_t status, size_t size) {
 }
 
-StateMachine::StateMachine() : state(0) {
+void Baseband::module_requires_initialization() {
 }
 
-void StateMachine::start() {
-  state = (State) &start;
+StateMachine::StateMachine(State s) : state(s) {
 }
 
-UARTTransportReader::UARTTransportReader(RingBuffer &buf) : delegate(0), input(buf)  {
-}
-
-void UARTTransportReader::start() {
-  packet_size = 0;
-  state = (State) &read_packet_indicator;
+UARTTransportReader::UARTTransportReader(RingBuffer &buf) :
+  StateMachine((State) &read_packet_indicator),
+  delegate(0),
+  input(buf)
+{
 }
 
 void UARTTransportReader::set_delegate(Delegate *d) {
@@ -212,4 +207,37 @@ void UARTTransportReader::event_packet_complete() {
     input.advance(packet_size);
   }
   go((State) &read_packet_indicator);
+}
+
+Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) :
+  StateMachine((State) &module_requires_initialization),
+  baseband(b)
+{
+}
+
+void Pan1323Bootstrap::event_packet(uint8_t code, size_t size) {
+  go();
+}
+
+void Pan1323Bootstrap::acl_packet(uint16_t handle, uint8_t boundary, uint8_t broadcast, size_t size) {
+}
+
+void Pan1323Bootstrap::synchronous_packet(uint16_t handle, uint8_t status, size_t size) {
+}
+
+void Pan1323Bootstrap::module_requires_initialization() {
+  baseband.shutdown.set_value(0); // assert SHUTDOWN
+  baseband.uart.set_baud(115200);
+  baseband.uart.set_enable(true);
+  baseband.uart.set_interrupt_enable(true);
+
+  baseband.shutdown.set_value(1); // clear SHUTDOWN
+  CPU::delay(150); // wait 150 msec
+  baseband.send(HCI::RESET);
+
+  state = (State) &reset_pending;
+}
+
+void Pan1323Bootstrap::reset_pending() {
+  
 }
