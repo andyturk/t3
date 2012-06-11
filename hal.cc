@@ -189,6 +189,10 @@ void UART::flush_rx_fifo() {
   while (can_read()) read1();
 }
 
+void UART::flush_tx_buffer() {
+  while (UARTBusy((uint32_t) base));
+}
+
 size_t UART::read(uint8_t *dst, size_t max) {
   size_t max0 = max;
 
@@ -299,6 +303,11 @@ void BufferedUART::fill_tx_fifo() {
 
   // enable the tx interrupt if there's more data in the ringbuffer
   set_interrupt_sources(UART::RX | UART::ERROR | (tx.read_capacity() > 0 ? UART::TX : 0));
+}
+
+void BufferedUART::flush_tx_buffer() {
+  while (tx.read_capacity() > 0);
+  UART::flush_tx_buffer();
 }
 
 UART0::UART0() : UART(0)

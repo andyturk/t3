@@ -1,21 +1,46 @@
 #include "bluetooth.h"
 #include "register_defs.h"
+#include "utils/uartstdio.h"
 
 namespace HCI {
-  #undef COMMAND
+  #define BEGIN_COMMANDS
   #define COMMAND(ogf,ocf,name,send,expect) HCI::Command name = {OPCODE(ogf,ocf), send};
+  #define END_COMMANDS
+
+  #define BEGIN_EVENTS
+  #define EVENT(code,name,args)
+  #define END_EVENTS
+
+  #define BEGIN_LE_EVENTS
+  #define LE_EVENT(code,name,args)
+  #define END_LE_EVENTS
+
   #include "command_defs.h"
+
+  #undef BEGIN_COMMANDS
+  #undef COMMAND
+  #undef END_COMMANDS
+
+  #undef BEGIN_EVENTS
+  #undef EVENT
+  #undef END_EVENTS
+
+  #undef BEGIN_LE_EVENTS
+  #undef LE_EVENT
+  #undef END_LE_EVENTS
 };
+
+extern Baseband pan1323;
 
 Baseband::Baseband(BufferedUART &uart, IOPin &shutdown) :
   uart(uart),
   shutdown(shutdown)
 {
-  reader.set_delegate(this);
   uart.set_delegate(this);
 }
 
 void Baseband::initialize() {
+  /*
   shutdown.initialize();
   shutdown.set_value(0); // assert SHUTDOWN
   uart.initialize();
@@ -25,6 +50,65 @@ void Baseband::initialize() {
 
   shutdown.set_value(1); // clear SHUTDOWN
   CPU::delay(150); // wait 150 msec
+  */
+}
+
+void Baseband::receive(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+
+  while (*format) {
+    switch (*format++) {
+    case '1' :
+      uart.rx.read1(*va_arg(args, uint8_t *));
+      break;
+
+    case '2' :
+      uart.rx.read(va_arg(args, uint8_t *), 2);
+      break;
+
+    case '3' : {
+      uint32_t *arg = va_arg(args, uint32_t *);
+      *arg = 0;
+      uart.rx.read((uint8_t *) arg, 3);
+      break;
+    }
+
+    case '4' :
+      uart.rx.read(va_arg(args, uint8_t *), 4);
+      break;
+
+    case 'b' :
+      uart.rx.read(va_arg(args, uint8_t *), 6);
+      break;
+
+    case 'x' :
+      uart.rx.read(va_arg(args, uint8_t *), 16);
+      break;
+
+    case 'n' :
+      uart.rx.read(va_arg(args, uint8_t *), 248);
+      break;
+
+    case 'c' :
+      uart.rx.read(va_arg(args, uint8_t *), 10);
+      break;
+
+    case 'i' :
+      uart.rx.read(va_arg(args, uint8_t *), 240);
+      break;
+
+    case 'C' :
+      uart.rx.read(va_arg(args, uint8_t *), 64);
+      break;
+
+    case '[' :
+    default :
+      for(;;);
+    }
+  }
+
+  va_end(args);
 }
 
 void Baseband::send(const HCI::Command &cmd, ...) {
@@ -198,22 +282,85 @@ Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) : baseband(b) {
 }
 
 void Pan1323Bootstrap::event_packet(UARTTransportReader &packet) {
-  go(packet);
+  if (packet.event_code == HCI::EVENT_COMMAND_COMPLETE) {
+    uint8_t num_hci_packets, parameter;
+    uint16_t opcode;
+
+    pan1323.receive("121", &num_hci_packets, &opcode, &parameter);
+    
+    if (parameter == 0) {
+      go(opcode);
+      return;
+    }
+  }
+
+  state = (State) &something_bad_happened;
 }
 
 void Pan1323Bootstrap::initialize() {
-  baseband.shutdown.set_value(0); // assert SHUTDOWN
-  baseband.uart.set_baud(115200);
-  baseband.uart.set_enable(true);
-  baseband.uart.set_interrupt_enable(true);
+  pan1323.shutdown.set_value(0); // assert SHUTDOWN
+  pan1323.uart.set_baud(115200);
+  pan1323.uart.set_enable(true);
+  pan1323.uart.set_interrupt_enable(true);
+  pan1323.reader.set_delegate(this);
+  state = (State) &reset_pending;
 
-  baseband.shutdown.set_value(1); // clear SHUTDOWN
+  pan1323.shutdown.set_value(1); // clear SHUTDOWN
   CPU::delay(150); // wait 150 msec
-  baseband.send(HCI::RESET);
-
-  go((State) &reset_pending);
+  pan1323.send(HCI::RESET);
 }
 
-void Pan1323Bootstrap::reset_pending(UARTTransportReader &packet) {
+void Pan1323Bootstrap::reset_pending(uint16_t opcode) {
+  if (opcode == HCI::RESET.opcode) {
+    state = (State) &read_version_info;
+    
+    pan1323.send(HCI::READ_LOCAL_VERSION_INFORMATION);
+  } else {
+    state = (State) &something_bad_happened;
+  }
+}
+
+void Pan1323Bootstrap::read_version_info(uint16_t opcode) {
+  if (opcode == HCI::READ_LOCAL_VERSION_INFORMATION.opcode) {
+    pan1323.receive("12122", &pan1323.local_version_info.hci_version,
+                              &pan1323.local_version_info.hci_revision,
+                              &pan1323.local_version_info.lmp_version,
+                              &pan1323.local_version_info.manufacturer_name,
+                              &pan1323.local_version_info.lmp_subversion);
+
+    state = (State) &baud_rate_negotiated;
+    pan1323.send(HCI::PAN13XX_CHANGE_BAUD_RATE, 921600L);
+  } else {
+    state = (State) &something_bad_happened;
+  }
+}
+
+void Pan1323Bootstrap::baud_rate_negotiated(uint16_t opcode) {
+  if (opcode == HCI::PAN13XX_CHANGE_BAUD_RATE.opcode) {
+    state = (State) &baud_rate_verified;
+    pan1323.uart.set_baud(921600L);
+    pan1323.send(HCI::READ_BD_ADDR);
+  } else {
+    state = (State) &something_bad_happened;
+  }
+}
+
+void Pan1323Bootstrap::baud_rate_verified(uint16_t opcode) {
+  extern IOPin led1;
+
+  if (opcode == HCI::READ_BD_ADDR.opcode) {
+    HCI::BD_ADDR addr;
+
+    pan1323.receive("b", &addr);
+    led1.set_value(1);
+    UARTprintf("BD_ADDR is ");
+    for (uint16_t i=0; i < sizeof(addr.data); ++i) UARTprintf("%02x:", addr.data[i]);
+    UARTprintf("\n");
+  } else {
+    state = (State) &something_bad_happened;
+  }
+}
+
+void Pan1323Bootstrap::something_bad_happened(uint16_t opcode) {
 }
 

@@ -9,6 +9,7 @@ IOPin pc4('C', 4, IOPin::OUTPUT);
 UART0 uart0;
 UART1 uart1;
 Baseband pan1323(uart1, pc4);
+Pan1323Bootstrap bootstrapper(pan1323);
 
 extern "C" int main() {
   CPU::set_clock_rate_50MHz();
@@ -24,12 +25,9 @@ extern "C" int main() {
 
   led1.initialize();
   led1.set_value(0);
-  
-  pan1323.initialize();
-
   CPU::set_master_interrupt_enable(true);
-
-  pan1323.send(HCI::RESET);
+  
+  bootstrapper.initialize();
 
   for(;;);
 }

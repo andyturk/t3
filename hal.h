@@ -69,6 +69,7 @@ class UART : public Peripheral {
   void set_interrupt_sources(uint32_t mask);
 
   virtual void flush_rx_fifo();
+  virtual void flush_tx_buffer();
   virtual bool can_read();
   virtual uint8_t read1();
   virtual void write1(uint8_t c);
@@ -188,6 +189,7 @@ class BufferedUART : public UART {
   void interrupt_handler();
   void drain_rx_fifo();
   void fill_tx_fifo();
+  virtual void flush_tx_buffer();
   void set_delegate(Delegate *delegate) {this->delegate = delegate;}
 
  protected:
