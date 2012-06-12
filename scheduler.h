@@ -10,7 +10,7 @@ class Callable {
   Callable() : next(0) {}
   inline virtual ~Callable() {}
 
-  void later();
+  void operator()();
   friend class Scheduler;
 };
 
@@ -20,7 +20,7 @@ class Scheduler {
   static void run_forever();
 
  protected:
-  static struct ready_list {
+  static struct ready_list_struct {
     Callable *head;
     Callable *tail;
   } ready_list;
