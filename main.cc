@@ -11,6 +11,7 @@ IOPin pc4('C', 4, IOPin::OUTPUT);
 UART0 uart0;
 UART1 uart1;
 Baseband pan1323(uart1, pc4);
+SysTick systick(1000);
 Pan1323Bootstrap bootstrapper(pan1323);
 
 extern "C" int main() {
@@ -21,9 +22,12 @@ extern "C" int main() {
   pc4.configure();
   uart0.configure();
   uart1.configure();
+  systick.configure();
 
   UARTStdioInitExpClk(0, 115200); // UART0 is the console
   UARTprintf("console initialized\n");
+
+  systick.initialize();
 
   led1.initialize();
   led1.set_value(0);
@@ -36,4 +40,44 @@ extern "C" int main() {
 
 extern "C" void __attribute__ ((isr)) uart_1_handler() {
   uart1.interrupt_handler();
+}
+
+class Foo : public Callable {
+public:
+  Foo() {}
+protected:
+  void call() {
+    UARTprintf("get me some foo!\n");
+  }
+};
+
+class Counter : public Callable {
+protected:
+  uint32_t count0;
+  uint32_t count;
+  Callable &other;
+
+  void call() {
+    UARTprintf("count = %d\n", count);
+    if (count-- == 0) {
+      count = count0;
+      other();
+    } 
+  }
+
+public:
+  Counter(uint32_t count, Callable &other) :
+    count0(count-1),
+    count(0),
+    other(other)
+  {
+  }
+
+};
+
+Foo foo;
+Counter every10(10, foo);
+
+extern "C" void __attribute__ ((isr)) systick_handler() {
+  every10();
 }
