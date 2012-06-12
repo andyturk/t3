@@ -344,3 +344,16 @@ void UART1::configure() {
   UARTFlowControlSet((uint32_t) base, UART_FLOWCONTROL_TX | UART_FLOWCONTROL_RX);
 }
 
+SysTick::SysTick(uint32_t msec) :
+  msec(msec)
+{
+}
+
+void SysTick::configure() {
+  SysTickEnable();
+  SysTickPeriodSet((CPU::get_clock_rate()/1000)*msec);
+}
+
+void SysTick::initialize() {
+  SysTickIntEnable();
+}

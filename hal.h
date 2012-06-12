@@ -118,5 +118,14 @@ class UART1 : public BufferedUART {
   virtual void configure();
 };
 
+class SysTick {
+  uint32_t msec;
+
+ public:
+  SysTick(uint32_t msec);
+  void configure();
+  void initialize();
+};
+
 
 
