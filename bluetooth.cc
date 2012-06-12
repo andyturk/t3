@@ -229,10 +229,10 @@ void UARTTransportReader::set_delegate(Delegate *d) {
   delegate = d;
 }
 
-void UARTTransportReader::bad_packet_indicator(RingBuffer &input) {
+void UARTTransportReader::bad_packet_indicator(RingBuffer<uint8_t> &input) {
 }
 
-void UARTTransportReader::read_packet_indicator(RingBuffer &input) {
+void UARTTransportReader::read_packet_indicator(RingBuffer<uint8_t> &input) {
   if (input.read_capacity() > 0) {
     uint8_t octet;
     input.read1(octet); // consume packet indicator
@@ -252,7 +252,7 @@ void UARTTransportReader::read_packet_indicator(RingBuffer &input) {
   }
 }
 
-void UARTTransportReader::read_event_code_and_length(RingBuffer &input) {
+void UARTTransportReader::read_event_code_and_length(RingBuffer<uint8_t> &input) {
   if (input.read_capacity() >= 2) {
     uint8_t octet;
 
@@ -265,7 +265,7 @@ void UARTTransportReader::read_event_code_and_length(RingBuffer &input) {
   }
 }
 
-void UARTTransportReader::read_event_parameters(RingBuffer &input) {
+void UARTTransportReader::read_event_parameters(RingBuffer<uint8_t> &input) {
   if (input.read_capacity() >= packet_size) {
     if (delegate) {
       delegate->event_packet(*this);

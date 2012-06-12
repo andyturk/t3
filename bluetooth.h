@@ -65,7 +65,7 @@ class StateMachine {
   State state;
 };
 
-class UARTTransportReader : public StateMachine<RingBuffer &> {
+class UARTTransportReader : public StateMachine<RingBuffer<uint8_t> &> {
  public:
   class Delegate {
   public:
@@ -84,12 +84,12 @@ class UARTTransportReader : public StateMachine<RingBuffer &> {
   Delegate *delegate;
 
   // operating states
-  void read_packet_indicator(RingBuffer &b);
-  void read_event_code_and_length(RingBuffer &b);
-  void read_event_parameters(RingBuffer &b);
+  void read_packet_indicator(RingBuffer<uint8_t> &b);
+  void read_event_code_and_length(RingBuffer<uint8_t> &b);
+  void read_event_parameters(RingBuffer<uint8_t> &b);
 
   // error states
-  void bad_packet_indicator(RingBuffer &b);
+  void bad_packet_indicator(RingBuffer<uint8_t> &b);
 };
 
 class Baseband :
