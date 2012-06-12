@@ -42,12 +42,16 @@ extern "C" void __attribute__ ((isr)) uart_1_handler() {
   uart1.interrupt_handler();
 }
 
-class Foo : public Callable {
+class Foo : public Callable, public StateMachine<int> {
 public:
-  Foo() {}
+  Foo() : StateMachine<int>((State) &want_foo) {}
 protected:
+  void want_foo(int) {UARTprintf("get me some foo!\n"); state = (State) &want_bar;}
+  void want_bar(int) {UARTprintf("get me some bar!\n"); state = (State) &want_baz;}
+  void want_baz(int) {UARTprintf("get me some baz!\n"); state = (State) &want_foo;}
+
   void call() {
-    UARTprintf("get me some foo!\n");
+    go(3);
   }
 };
 

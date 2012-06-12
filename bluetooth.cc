@@ -283,12 +283,9 @@ Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) : baseband(b) {
 
 void Pan1323Bootstrap::event_packet(UARTTransportReader &packet) {
   if (packet.event_code == HCI::EVENT_COMMAND_COMPLETE) {
-    uint8_t num_hci_packets, parameter;
-    uint16_t opcode;
-
-    pan1323.receive("121", &num_hci_packets, &opcode, &parameter);
+    pan1323.receive("121", &num_hci_packets, &opcode, &command_status);
     
-    if (parameter == 0) {
+    if (command_status == 0) {
       go(opcode);
       return;
     }
@@ -310,7 +307,7 @@ void Pan1323Bootstrap::initialize() {
   pan1323.send(HCI::RESET);
 }
 
-void Pan1323Bootstrap::reset_pending(uint16_t opcode) {
+void Pan1323Bootstrap::reset_pending(uint16_t unused) {
   if (opcode == HCI::RESET.opcode) {
     state = (State) &read_version_info;
     
@@ -320,7 +317,7 @@ void Pan1323Bootstrap::reset_pending(uint16_t opcode) {
   }
 }
 
-void Pan1323Bootstrap::read_version_info(uint16_t opcode) {
+void Pan1323Bootstrap::read_version_info(uint16_t unused) {
   if (opcode == HCI::READ_LOCAL_VERSION_INFORMATION.opcode) {
     pan1323.receive("12122", &pan1323.local_version_info.hci_version,
                               &pan1323.local_version_info.hci_revision,
@@ -335,7 +332,7 @@ void Pan1323Bootstrap::read_version_info(uint16_t opcode) {
   }
 }
 
-void Pan1323Bootstrap::baud_rate_negotiated(uint16_t opcode) {
+void Pan1323Bootstrap::baud_rate_negotiated(uint16_t unused) {
   if (opcode == HCI::PAN13XX_CHANGE_BAUD_RATE.opcode) {
     state = (State) &baud_rate_verified;
     pan1323.uart.set_baud(921600L);
@@ -345,7 +342,7 @@ void Pan1323Bootstrap::baud_rate_negotiated(uint16_t opcode) {
   }
 }
 
-void Pan1323Bootstrap::baud_rate_verified(uint16_t opcode) {
+void Pan1323Bootstrap::baud_rate_verified(uint16_t unused) {
   extern IOPin led1;
 
   if (opcode == HCI::READ_BD_ADDR.opcode) {
@@ -361,6 +358,6 @@ void Pan1323Bootstrap::baud_rate_verified(uint16_t opcode) {
   }
 }
 
-void Pan1323Bootstrap::something_bad_happened(uint16_t opcode) {
+void Pan1323Bootstrap::something_bad_happened(uint16_t unused) {
 }
 

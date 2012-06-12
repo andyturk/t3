@@ -126,6 +126,8 @@ class Pan1323Bootstrap :
   public UARTTransportReader::Delegate
 {
   Baseband &baseband;
+  uint16_t opcode;
+  uint8_t num_hci_packets, command_status;
 
  public:
   Pan1323Bootstrap(Baseband &b);
