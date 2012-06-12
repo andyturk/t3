@@ -49,23 +49,23 @@ namespace HCI {
   #undef END_LE_EVENTS
 };
 
-template<class Event>
 class StateMachine {
  public:
-  typedef void (StateMachine::*State)(Event);
+  typedef void (StateMachine::*State)();
   //typedef void (*State)(StateMachine *, Event);
 
-  StateMachine() : state(0) {}
-  StateMachine(State s) : state(s) {}
+  StateMachine() : method(0), machine(this) {}
+  StateMachine(StateMachine *sm, State m) : method(m), machine(sm) {}
   //  inline void go(Event e) {(*state)(this, e);}
-  inline void go(Event e) { (this->*state)(e); }
-  inline void go(State s) {state = s;}
+  inline void go() { (machine->*method)(); }
+  inline void go(void *m, State s) {machine = (StateMachine *) m;method = s;}
 
  protected:
-  State state;
+  State method;
+  StateMachine *machine;
 };
 
-class UARTTransportReader : public StateMachine<RingBuffer<uint8_t> &> {
+class UARTTransportReader : public StateMachine {
  public:
   class Delegate {
   public:
@@ -74,22 +74,24 @@ class UARTTransportReader : public StateMachine<RingBuffer<uint8_t> &> {
     virtual void synchronous_packet(UARTTransportReader &r) {};
   };
 
-  UARTTransportReader();
+  UARTTransportReader(RingBuffer<uint8_t> &buf);
   void set_delegate(Delegate *delegate);
   size_t packet_size;
   uint8_t event_code, acl_bounary, acl_broadcast, synchronous_status;
   uint16_t handle;
 
+  RingBuffer<uint8_t> &input;
+
  private:
   Delegate *delegate;
 
   // operating states
-  void read_packet_indicator(RingBuffer<uint8_t> &b);
-  void read_event_code_and_length(RingBuffer<uint8_t> &b);
-  void read_event_parameters(RingBuffer<uint8_t> &b);
+  void read_packet_indicator();
+  void read_event_code_and_length();
+  void read_event_parameters();
 
   // error states
-  void bad_packet_indicator(RingBuffer<uint8_t> &b);
+  void bad_packet_indicator();
 };
 
 class Baseband :
@@ -122,7 +124,7 @@ class Baseband :
 };
 
 class Pan1323Bootstrap :
-  public StateMachine<uint16_t>, // opcode of successful HCI command
+  public StateMachine,
   public UARTTransportReader::Delegate
 {
   Baseband &baseband;
@@ -137,11 +139,11 @@ class Pan1323Bootstrap :
   virtual void event_packet(UARTTransportReader &packet);
 
   // StateMachine states
-  void reset_pending(uint16_t opcode);
-  void read_version_info(uint16_t opcode);
-  void baud_rate_negotiated(uint16_t opcode);
-  void baud_rate_verified(uint16_t opcode);
-  void something_bad_happened(uint16_t opcode);
+  void reset_pending();
+  void read_version_info();
+  void baud_rate_negotiated();
+  void baud_rate_verified();
+  void something_bad_happened();
 };
 
 

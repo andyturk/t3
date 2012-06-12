@@ -34,7 +34,8 @@ extern Baseband pan1323;
 
 Baseband::Baseband(BufferedUART &uart, IOPin &shutdown) :
   uart(uart),
-  shutdown(shutdown)
+  shutdown(shutdown),
+  reader(uart.rx)
 {
   uart.set_delegate(this);
 }
@@ -209,7 +210,7 @@ void Baseband::error_occurred(BufferedUART *u) {
 }
 
 void Baseband::data_received(BufferedUART *u) {
-  reader.go(u->rx);
+  reader.go();
 }
 
 void Baseband::event_packet(UARTTransportReader &packet) {
@@ -219,8 +220,9 @@ void Baseband::event_packet(UARTTransportReader &packet) {
   uart.rx.advance(packet.packet_size);
 }
 
-UARTTransportReader::UARTTransportReader() :
-  StateMachine((State) &read_packet_indicator),
+UARTTransportReader::UARTTransportReader(RingBuffer<uint8_t> &buffer) :
+  StateMachine(this, (State) &read_packet_indicator),
+  input(buffer),
   delegate(0)
 {
 }
@@ -229,30 +231,30 @@ void UARTTransportReader::set_delegate(Delegate *d) {
   delegate = d;
 }
 
-void UARTTransportReader::bad_packet_indicator(RingBuffer<uint8_t> &input) {
+void UARTTransportReader::bad_packet_indicator() {
 }
 
-void UARTTransportReader::read_packet_indicator(RingBuffer<uint8_t> &input) {
+void UARTTransportReader::read_packet_indicator() {
   if (input.read_capacity() > 0) {
     uint8_t octet;
     input.read1(octet); // consume packet indicator
 
     switch (octet) {
     case HCI::EVENT_PACKET :
-      go((State) &read_event_code_and_length);
-      go(input);
+      go(this, (State) &read_event_code_and_length);
+      go();
       break;
 
     case HCI::COMMAND_PACKET :
     case HCI::ACL_PACKET :
     case HCI::SYNCHRONOUS_DATA_PACKET :
     default :
-      go((State) &bad_packet_indicator);
+      go(this, (State) &bad_packet_indicator);
     }
   }
 }
 
-void UARTTransportReader::read_event_code_and_length(RingBuffer<uint8_t> &input) {
+void UARTTransportReader::read_event_code_and_length() {
   if (input.read_capacity() >= 2) {
     uint8_t octet;
 
@@ -260,12 +262,12 @@ void UARTTransportReader::read_event_code_and_length(RingBuffer<uint8_t> &input)
     input.read1(octet);
     packet_size = (size_t) octet;
 
-    go((State) &read_event_parameters);
-    go(input);
+    go(this, (State) &read_event_parameters);
+    go();
   }
 }
 
-void UARTTransportReader::read_event_parameters(RingBuffer<uint8_t> &input) {
+void UARTTransportReader::read_event_parameters() {
   if (input.read_capacity() >= packet_size) {
     if (delegate) {
       delegate->event_packet(*this);
@@ -273,8 +275,8 @@ void UARTTransportReader::read_event_parameters(RingBuffer<uint8_t> &input) {
       input.advance(packet_size);
     }
 
-    go((State) &read_packet_indicator);
-    go(input);
+    go(this, (State) &read_packet_indicator);
+    go();
   }
 }
 
@@ -286,12 +288,12 @@ void Pan1323Bootstrap::event_packet(UARTTransportReader &packet) {
     pan1323.receive("121", &num_hci_packets, &opcode, &command_status);
     
     if (command_status == 0) {
-      go(opcode);
+      go();
       return;
     }
   }
 
-  state = (State) &something_bad_happened;
+  go(this, (State) &something_bad_happened);
 }
 
 void Pan1323Bootstrap::initialize() {
@@ -300,24 +302,25 @@ void Pan1323Bootstrap::initialize() {
   pan1323.uart.set_enable(true);
   pan1323.uart.set_interrupt_enable(true);
   pan1323.reader.set_delegate(this);
-  state = (State) &reset_pending;
+
+  go(this, (State) &reset_pending);
 
   pan1323.shutdown.set_value(1); // clear SHUTDOWN
   CPU::delay(150); // wait 150 msec
   pan1323.send(HCI::RESET);
 }
 
-void Pan1323Bootstrap::reset_pending(uint16_t unused) {
+void Pan1323Bootstrap::reset_pending() {
   if (opcode == HCI::RESET.opcode) {
-    state = (State) &read_version_info;
+    go(this, (State) &read_version_info);
     
     pan1323.send(HCI::READ_LOCAL_VERSION_INFORMATION);
   } else {
-    state = (State) &something_bad_happened;
+    go(this, (State) &something_bad_happened);
   }
 }
 
-void Pan1323Bootstrap::read_version_info(uint16_t unused) {
+void Pan1323Bootstrap::read_version_info() {
   if (opcode == HCI::READ_LOCAL_VERSION_INFORMATION.opcode) {
     pan1323.receive("12122", &pan1323.local_version_info.hci_version,
                               &pan1323.local_version_info.hci_revision,
@@ -325,24 +328,24 @@ void Pan1323Bootstrap::read_version_info(uint16_t unused) {
                               &pan1323.local_version_info.manufacturer_name,
                               &pan1323.local_version_info.lmp_subversion);
 
-    state = (State) &baud_rate_negotiated;
+    go(this, (State) &baud_rate_negotiated);
     pan1323.send(HCI::PAN13XX_CHANGE_BAUD_RATE, 921600L);
   } else {
-    state = (State) &something_bad_happened;
+    go(this, (State) &something_bad_happened);
   }
 }
 
-void Pan1323Bootstrap::baud_rate_negotiated(uint16_t unused) {
+void Pan1323Bootstrap::baud_rate_negotiated() {
   if (opcode == HCI::PAN13XX_CHANGE_BAUD_RATE.opcode) {
-    state = (State) &baud_rate_verified;
+    go(this, (State) &baud_rate_verified);
     pan1323.uart.set_baud(921600L);
     pan1323.send(HCI::READ_BD_ADDR);
   } else {
-    state = (State) &something_bad_happened;
+    go(this, (State) &something_bad_happened);
   }
 }
 
-void Pan1323Bootstrap::baud_rate_verified(uint16_t unused) {
+void Pan1323Bootstrap::baud_rate_verified() {
   extern IOPin led1;
 
   if (opcode == HCI::READ_BD_ADDR.opcode) {
@@ -354,10 +357,10 @@ void Pan1323Bootstrap::baud_rate_verified(uint16_t unused) {
     for (uint16_t i=0; i < sizeof(addr.data); ++i) UARTprintf("%02x:", addr.data[i]);
     UARTprintf("\n");
   } else {
-    state = (State) &something_bad_happened;
+    go(this, (State) &something_bad_happened);
   }
 }
 
-void Pan1323Bootstrap::something_bad_happened(uint16_t unused) {
+void Pan1323Bootstrap::something_bad_happened() {
 }
 
