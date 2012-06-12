@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include <cstdlib>
 
-#define assert(x) do {if(!(x)) for(;;);} while (0)
+#include "ringbuffer.h"
+#include "assert.h"
 
 class CPU {
  public:
@@ -78,100 +79,6 @@ class UART : public Peripheral {
   virtual size_t write(const uint8_t *src, size_t max);
 };
 
-class RingBuffer {
-  uint8_t *const buffer;
-  const size_t capacity;
-  uint32_t read_position, write_position;
-
- public:
-  RingBuffer(uint8_t *const buffer, size_t capacity) :
-    buffer(buffer), capacity(capacity), read_position(0), write_position(0) {}
-  
-  void flush() {
-    read_position = write_position = 0;
-  }
-
-  size_t read_capacity() const {
-    size_t cap = 0xffffffff;
-
-    if (write_position >= read_position) {
-      cap = write_position - read_position;
-    } else {
-      cap = (capacity - read_position) + write_position;
-    }
-
-    return cap;
-  }
-
-  size_t write_capacity() const {
-    if (write_position >= read_position) {
-      return (capacity - write_position) + read_position;
-    } else {
-      return read_position - (write_position + 1);
-    }
-  }
-
-  size_t read(uint8_t *dst, size_t n) {
-    size_t read_count = 0;
-
-    while (n > 0 && read_capacity() > 0) {
-      size_t run = (write_position >= read_position) ?
-        (write_position - read_position) : (capacity - read_position);
-      if (n < run) run = n;
-      for (size_t i=0; i < run; ++i) dst[i] = buffer[read_position + i];
-      read_position += run;
-      if (read_position == capacity) read_position = 0;
-      read_count += run;
-      n -= run;
-    };
-
-    return read_count;
-  }
-
-  inline bool read1(uint8_t &dst) {
-    return read(&dst, 1) == 1;
-  }
-
-  inline uint8_t peek(uint32_t offset) {
-    assert(offset < capacity);
-    offset += read_position;
-    if (offset > capacity) offset -= capacity;
-    return buffer[offset];
-  }
-
-  inline void advance(uint32_t offset) {
-    assert(offset < capacity);
-    read_position += offset;
-    if (read_position > capacity) read_position -= capacity;
-  }
-
-  uint8_t *write_ptr() {
-    assert(write_position < capacity);
-    return buffer + write_position;
-  }
-
-  size_t write(const uint8_t *src, size_t n) {
-    size_t write_count = 0;
-
-    while (n > 0 && write_capacity() > 0) {
-      size_t run = (write_position >= read_position) ?
-        (capacity - write_position) : (read_position - write_position);
-      if (n < run) run = n;
-      for (size_t i=0; i < run; ++i) buffer[write_position + i] = src[i];
-      write_position += run;
-      if (write_position == capacity) write_position = 0;
-      write_count += run;
-      n -= run;
-    };
-
-    return write_count;
-  }
-
-  inline bool write1(const uint8_t &src) {
-    return write(&src, 1) == 1;
-  }
-};
-
 class BufferedUART : public UART {
  public:
   class Delegate {
@@ -180,8 +87,8 @@ class BufferedUART : public UART {
     virtual void error_occurred(BufferedUART *u) = 0;
   };
 
-  RingBuffer rx;
-  RingBuffer tx;
+  RingBuffer<uint8_t> rx;
+  RingBuffer<uint8_t> tx;
 
   BufferedUART(uint32_t n, uint8_t *rx, size_t rx_len, uint8_t *tx, size_t tx_len);
   virtual size_t write(const uint8_t *buffer, size_t length);
