@@ -1,6 +1,8 @@
 #include <stdint.h>
+#include "ringbuffer.h"
 #include "hal.h"
 #include "bluetooth.h"
+#include "scheduler.h"
 
 #include "utils/uartstdio.h"
 
@@ -29,7 +31,7 @@ extern "C" int main() {
   
   bootstrapper.initialize();
 
-  for(;;);
+  Scheduler::run_forever();
 }
 
 extern "C" void __attribute__ ((isr)) uart_1_handler() {
