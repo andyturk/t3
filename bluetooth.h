@@ -51,14 +51,25 @@ namespace HCI {
 
 class StateMachine {
  public:
-  typedef void (StateMachine::*State)();
-  //typedef void (*State)(StateMachine *, Event);
+  typedef void (*State)(StateMachine *);
+  //typedef void (StateMachine::*State)();
 
-  StateMachine() : method(0), machine(this) {}
-  StateMachine(StateMachine *sm, State m) : method(m), machine(sm) {}
-  //  inline void go(Event e) {(*state)(this, e);}
-  inline void go() { (machine->*method)(); }
-  inline void go(void *m, State s) {machine = (StateMachine *) m;method = s;}
+  StateMachine() : method(0), machine(0) {}
+  StateMachine(void *sm, State m) :
+    method(m),
+    machine((StateMachine *) sm)
+  {
+  }
+
+  void go() {
+    method(machine);
+    //(machine->*method)();
+  }
+
+  void go(void *m, State s) {
+    machine = (StateMachine *) m;
+    method = s;
+  }
 
  protected:
   State method;

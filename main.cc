@@ -48,12 +48,12 @@ public:
     go(this, (State) &want_foo);
   }
 protected:
-  void want_foo(int) {
+  void want_foo() {
     UARTprintf("get me some foo!\n");
     go(this, (State) &want_bar);
   }
-  void want_bar(int) {UARTprintf("get me some bar!\n"); go(this, (State) &want_baz);}
-  void want_baz(int) {UARTprintf("get me some baz!\n"); go(this, (State) &want_foo);}
+  void want_bar() {UARTprintf("get me some bar!\n"); go(this, (State) &want_baz);}
+  void want_baz() {UARTprintf("get me some baz!\n"); go(this, (State) &want_foo);}
 
   void call() {
     go();
