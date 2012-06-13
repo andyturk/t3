@@ -112,6 +112,11 @@ void Baseband::receive(const char *format, ...) {
   va_end(args);
 }
 
+void Baseband::send(uint8_t *data, size_t length) {
+  uart.tx.write(data, length);
+  uart.fill_tx_fifo();
+}
+
 void Baseband::send(const HCI::Command &cmd, ...) {
   va_list args;
   va_start(args, cmd);
@@ -280,7 +285,11 @@ void UARTTransportReader::read_event_parameters() {
   }
 }
 
-Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) : baseband(b) {
+Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) :
+  baseband(b),
+  patch_data(0),
+  patch_len(0)
+{
 }
 
 void Pan1323Bootstrap::event_packet(UARTTransportReader &packet) {
@@ -308,6 +317,14 @@ void Pan1323Bootstrap::initialize() {
   pan1323.shutdown.set_value(1); // clear SHUTDOWN
   CPU::delay(150); // wait 150 msec
   pan1323.send(HCI::RESET);
+}
+
+void Pan1323Bootstrap::send_patch_command() {
+  assert(patch_len >= 4);
+
+  size_t command_length = 4 + patch_data[3];
+  expected_opcode = (patch_data[2] << 8) + patch_data[1];
+  baseband.send(patch_data, command_length);
 }
 
 void Pan1323Bootstrap::reset_pending() {
@@ -338,6 +355,7 @@ void Pan1323Bootstrap::read_version_info() {
 void Pan1323Bootstrap::baud_rate_negotiated() {
   if (opcode == HCI::PAN13XX_CHANGE_BAUD_RATE.opcode) {
     go(this, (State) &baud_rate_verified);
+
     pan1323.uart.set_baud(921600L);
     pan1323.send(HCI::READ_BD_ADDR);
   } else {
@@ -346,19 +364,43 @@ void Pan1323Bootstrap::baud_rate_negotiated() {
 }
 
 void Pan1323Bootstrap::baud_rate_verified() {
-  extern IOPin led1;
 
   if (opcode == HCI::READ_BD_ADDR.opcode) {
     HCI::BD_ADDR addr;
 
     pan1323.receive("b", &addr);
-    led1.set_value(1);
     UARTprintf("BD_ADDR is ");
     for (uint16_t i=0; i < sizeof(addr.data); ++i) UARTprintf("%02x:", addr.data[i]);
     UARTprintf("\n");
+
+    if (patch_len > 0) {
+      send_patch_command();
+      go(this, (State) verify_patch_command);
+    } else {
+      go(this, (State) bootstrap_complete);
+    }
   } else {
     go(this, (State) &something_bad_happened);
   }
+}
+
+void Pan1323Bootstrap::verify_patch_command() {
+  if (expected_opcode != 0 && expected_opcode != opcode) {
+    go(this, (State) something_bad_happened);
+    return;
+  }
+
+  if (patch_len > 0) {
+    send_patch_command();
+  } else {
+    go(this, (State) bootstrap_complete);
+  }
+}
+
+void Pan1323Bootstrap::bootstrap_complete() {
+  UARTprintf("bootstrap complete\n");
+  extern IOPin led1;
+  led1.set_value(1);
 }
 
 void Pan1323Bootstrap::something_bad_happened() {

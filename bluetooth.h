@@ -97,6 +97,7 @@ class Baseband :
   void initialize();
 
   void send(HCI::Command const &cmd, ...);
+  void send(uint8_t *data, size_t len);
   void receive(const char *format, ...);
   void data_received(BufferedUART *u);
   void error_occurred(BufferedUART *u);
@@ -113,8 +114,12 @@ class Pan1323Bootstrap :
   public UARTTransportReader::Delegate
 {
   Baseband &baseband;
-  uint16_t opcode;
+  uint8_t *patch_data;
+  size_t patch_len;
+  uint16_t opcode, expected_opcode;
   uint8_t num_hci_packets, command_status;
+
+  void send_patch_command();
 
  public:
   Pan1323Bootstrap(Baseband &b);
@@ -128,7 +133,9 @@ class Pan1323Bootstrap :
   void read_version_info();
   void baud_rate_negotiated();
   void baud_rate_verified();
+  void verify_patch_command();
   void something_bad_happened();
+  void bootstrap_complete();
 };
 
 
