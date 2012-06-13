@@ -1,4 +1,5 @@
 #pragma once
+#include "statemachine.h"
 
 class Callable {
   Callable *next;
@@ -10,8 +11,16 @@ class Callable {
   Callable() : next(0) {}
   inline virtual ~Callable() {}
 
-  void operator()();
+  void ready();
   friend class Scheduler;
+};
+
+class CSM : public StateMachine, public Callable {
+ public:
+  CSM(State start) :
+    StateMachine(this, start),
+    Callable()
+  {}
 };
 
 class Scheduler {

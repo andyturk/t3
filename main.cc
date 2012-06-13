@@ -27,7 +27,7 @@ extern "C" int main() {
   UARTStdioInitExpClk(0, 115200); // UART0 is the console
   UARTprintf("console initialized\n");
 
-  systick.initialize();
+  //systick.initialize();
 
   led1.initialize();
   led1.set_value(0);
@@ -75,7 +75,7 @@ protected:
     UARTprintf("count = %d\n", count);
     if (count-- == 0) {
       count = count0;
-      other();
+      other.ready();
     } 
   }
 
@@ -93,5 +93,5 @@ Foo2 foo;
 Counter every10(10, foo);
 
 extern "C" void __attribute__ ((isr)) systick_handler() {
-  every10();
+  every10.ready();
 }

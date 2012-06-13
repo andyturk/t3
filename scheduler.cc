@@ -40,7 +40,7 @@ void Scheduler::run_forever() {
   } while (true);  
 }
 
-void Callable::operator()() {
+void Callable::ready() {
   uint32_t primask;
 
   asm volatile ("mrs %0, PRIMASK\n"
