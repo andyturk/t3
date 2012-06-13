@@ -21,6 +21,8 @@ class CSM : public StateMachine, public Callable {
     StateMachine(this, start),
     Callable()
   {}
+
+  virtual void call() {StateMachine::operator()();}
 };
 
 class Scheduler {

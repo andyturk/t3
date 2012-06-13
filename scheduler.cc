@@ -29,13 +29,18 @@ void Scheduler::run_once() {
     }
 
     asm volatile ("msr PRIMASK, %0\n" : "=r" (primask));
-    if (next) next->call();
+
+    if (next) {
+      next->call();
+    }
   } while (ready_list.head);
 }
 
 void Scheduler::run_forever() {
+  extern IOPin led1;
   do {
     run_once();
+    led1.set_value(1);
     asm volatile ("wfi");
   } while (true);  
 }
