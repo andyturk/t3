@@ -5,6 +5,7 @@
 
 #include "hal.h"
 #include "statemachine.h"
+#include "scheduler.h"
 
 namespace HCI {
   enum packet_indicator {
@@ -50,7 +51,7 @@ namespace HCI {
   #undef END_LE_EVENTS
 };
 
-class UARTTransportReader : public StateMachine {
+class UARTTransportReader : public CSM {
  public:
   class Delegate {
   public:
@@ -61,11 +62,16 @@ class UARTTransportReader : public StateMachine {
 
   UARTTransportReader(RingBuffer<uint8_t> &buf);
   void set_delegate(Delegate *delegate);
+
+  uint8_t packet_type;
   size_t packet_size;
-  uint8_t event_code, acl_bounary, acl_broadcast, synchronous_status;
+
+  uint8_t event_code;
+  uint8_t acl_bounary, acl_broadcast, synchronous_status;
   uint16_t handle;
 
   RingBuffer<uint8_t> &input;
+  void get_next_packet();
 
  private:
   Delegate *delegate;
@@ -74,6 +80,7 @@ class UARTTransportReader : public StateMachine {
   void read_packet_indicator();
   void read_event_code_and_length();
   void read_event_parameters();
+  void packet_is_ready();
 
   // error states
   void bad_packet_indicator();
@@ -110,7 +117,7 @@ class Baseband :
 };
 
 class Pan1323Bootstrap :
-  public StateMachine,
+  public CSM,
   public UARTTransportReader::Delegate
 {
   Baseband &baseband;
