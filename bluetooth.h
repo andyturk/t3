@@ -51,8 +51,8 @@ namespace HCI {
 
 class StateMachine {
  public:
-  typedef void (*State)(StateMachine *);
-  //typedef void (StateMachine::*State)();
+  //typedef void (*State)(StateMachine *);
+  typedef void (StateMachine::*State)();
 
   StateMachine() : method(0), machine(0) {}
   StateMachine(void *sm, State m) :
@@ -61,9 +61,11 @@ class StateMachine {
   {
   }
 
-  void go() {
-    method(machine);
-    //(machine->*method)();
+  inline virtual ~StateMachine() {}
+
+  virtual void operator()() {
+    //method(machine);
+    (machine->*method)();
   }
 
   void go(void *m, State s) {
@@ -74,6 +76,8 @@ class StateMachine {
  protected:
   State method;
   StateMachine *machine;
+
+  virtual void dummy() {}
 };
 
 class UARTTransportReader : public StateMachine {

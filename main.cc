@@ -42,21 +42,26 @@ extern "C" void __attribute__ ((isr)) uart_1_handler() {
   uart1.interrupt_handler();
 }
 
-class Foo : public Callable, public StateMachine {
+class Foo : public StateMachine, public Callable {
 public:
   Foo() {
     go(this, (State) &want_foo);
   }
 protected:
-  void want_foo() {
-    UARTprintf("get me some foo!\n");
-    go(this, (State) &want_bar);
-  }
-  void want_bar() {UARTprintf("get me some bar!\n"); go(this, (State) &want_baz);}
-  void want_baz() {UARTprintf("get me some baz!\n"); go(this, (State) &want_foo);}
+  virtual void want_foo() {UARTprintf("get me some foo!\n"); go(this, (State) want_bar);}
+  virtual void want_bar() {UARTprintf("get me some bar!\n"); go(this, (State) want_baz);}
+  virtual void want_baz() {UARTprintf("get me some baz!\n"); go(this, (State) want_foo);}
 
   void call() {
-    go();
+    StateMachine::operator()();
+  }
+};
+
+class Foo2 : public Foo {
+protected:
+  virtual void want_bar() {
+    UARTprintf("Foo2 says: get me sum bar!\n");
+    go(this, (State) &want_baz);
   }
 };
 
@@ -84,7 +89,7 @@ public:
 
 };
 
-Foo foo;
+Foo2 foo;
 Counter every10(10, foo);
 
 extern "C" void __attribute__ ((isr)) systick_handler() {

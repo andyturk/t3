@@ -210,7 +210,7 @@ void Baseband::error_occurred(BufferedUART *u) {
 }
 
 void Baseband::data_received(BufferedUART *u) {
-  reader.go();
+  reader();
 }
 
 void Baseband::event_packet(UARTTransportReader &packet) {
@@ -242,7 +242,7 @@ void UARTTransportReader::read_packet_indicator() {
     switch (octet) {
     case HCI::EVENT_PACKET :
       go(this, (State) &read_event_code_and_length);
-      go();
+      (*this)();
       break;
 
     case HCI::COMMAND_PACKET :
@@ -263,7 +263,7 @@ void UARTTransportReader::read_event_code_and_length() {
     packet_size = (size_t) octet;
 
     go(this, (State) &read_event_parameters);
-    go();
+    (*this)();
   }
 }
 
@@ -276,7 +276,7 @@ void UARTTransportReader::read_event_parameters() {
     }
 
     go(this, (State) &read_packet_indicator);
-    go();
+    (*this)();
   }
 }
 
@@ -288,7 +288,7 @@ void Pan1323Bootstrap::event_packet(UARTTransportReader &packet) {
     pan1323.receive("121", &num_hci_packets, &opcode, &command_status);
     
     if (command_status == 0) {
-      go();
+      (*this)();
       return;
     }
   }
