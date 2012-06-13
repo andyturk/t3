@@ -4,6 +4,7 @@
 #include <stdarg.h>
 
 #include "hal.h"
+#include "statemachine.h"
 
 namespace HCI {
   enum packet_indicator {
@@ -47,37 +48,6 @@ namespace HCI {
   #undef BEGIN_LE_EVENTS
   #undef LE_EVENT
   #undef END_LE_EVENTS
-};
-
-class StateMachine {
- public:
-  //typedef void (*State)(StateMachine *);
-  typedef void (StateMachine::*State)();
-
-  StateMachine() : method(0), machine(0) {}
-  StateMachine(void *sm, State m) :
-    method(m),
-    machine((StateMachine *) sm)
-  {
-  }
-
-  inline virtual ~StateMachine() {}
-
-  virtual void operator()() {
-    //method(machine);
-    (machine->*method)();
-  }
-
-  void go(void *m, State s) {
-    machine = (StateMachine *) m;
-    method = s;
-  }
-
- protected:
-  State method;
-  StateMachine *machine;
-
-  virtual void dummy() {}
 };
 
 class UARTTransportReader : public StateMachine {
