@@ -1,11 +1,19 @@
 #pragma once
 
+/*
+ * Classes derived from StateMachine should have it as the first
+ * first superclass, otherwise derived virtual states won't work.
+ */
 class StateMachine {
  public:
-  //typedef void (*State)(StateMachine *);
   typedef void (StateMachine::*State)();
 
-  StateMachine() : method(0), machine(0) {}
+  StateMachine() :
+    method(0),
+    machine(0)
+  {
+  }
+
   StateMachine(void *sm, State m) :
     method(m),
     machine((StateMachine *) sm)
@@ -15,7 +23,6 @@ class StateMachine {
   inline virtual ~StateMachine() {}
 
   virtual void operator()() {
-    //method(machine);
     (machine->*method)();
   }
 
@@ -27,7 +34,5 @@ class StateMachine {
  protected:
   State method;
   StateMachine *machine;
-
-  virtual void dummy() {}
 };
 
