@@ -10,6 +10,16 @@ enum opcode_group {
   VS = 0x3f  // Vendor Specific
 };
 
+enum hci_version {
+  SPECIFICATION_1_1B,
+  SPECIFICATION_1_1,
+  SPECIFICATION_1_2,
+  SPECIFICATION_2_0,
+  SPECIFICATION_2_1_EDR,
+  SPECIFICATION_3_0_HS,
+  SPECIFICATION_4_0
+};
+
 #define OPCODE(ogf,ocf) (((ogf) << 10) | (ocf))
 #endif
 

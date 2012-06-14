@@ -113,20 +113,28 @@ void Baseband::receive(const char *format, ...) {
 }
 
 void Baseband::send(uint8_t *data, size_t length) {
-  uart.tx.write(data, length);
+  size_t written;
+
+  written = uart.tx.write(data, length);
+  assert(written == length);
   uart.fill_tx_fifo();
 }
 
 void Baseband::send(const HCI::Command &cmd, ...) {
+  size_t written;
   va_list args;
   va_start(args, cmd);
 
-  uart.tx.write1(HCI::COMMAND_PACKET);
-  uart.tx.write1(cmd.opcode &0xff);
-  uart.tx.write1(cmd.opcode >> 8);
+  written = uart.tx.write1(HCI::COMMAND_PACKET);
+  assert(written == 1);
+  written = uart.tx.write1(cmd.opcode &0xff);
+  assert(written == 1);
+  written = uart.tx.write1(cmd.opcode >> 8);
+  assert(written == 1);
 
   uint8_t &total_parameter_length = *uart.tx.write_ptr();
-  uart.tx.write1(0); // total_parameter_length
+  written = uart.tx.write1(0); // total_parameter_length
+  assert(written == 1);
 
   total_parameter_length = 0;
 
@@ -137,41 +145,53 @@ void Baseband::send(const HCI::Command &cmd, ...) {
   while (*p) {
     switch (*p++) {
     case '1' :
-      uart.tx.write1((uint8_t) va_arg(args, int));
+      written = uart.tx.write1((uint8_t) va_arg(args, int));
+      assert(written == 1);
       total_parameter_length += 1;
       break;
       
     case '2' :
       u2 = (uint16_t) va_arg(args, int);
-      uart.tx.write1(u2 & 0xff);
-      uart.tx.write1(u2 >> 8);
+      written = uart.tx.write1(u2 & 0xff);
+      assert(written == 1);
+      written = uart.tx.write1(u2 >> 8);
+      assert(written == 1);
       total_parameter_length += 2;
       break;
 
     case '3' :
       u3 = va_arg(args, uint32_t);
-      uart.tx.write1(u3 & 0xff);
-      uart.tx.write1(u3 >> 8);
-      uart.tx.write1(u3 >> 16);
+      written = uart.tx.write1(u3 & 0xff);
+      assert(written == 1);
+      written = uart.tx.write1(u3 >> 8);
+      assert(written == 1);
+      written = uart.tx.write1(u3 >> 16);
+      assert(written == 1);
       total_parameter_length += 3;
       break;
 
     case '4' :
       u4 = va_arg(args, uint32_t);
-      uart.tx.write1(u4 & 0xff);
-      uart.tx.write1(u4 >> 8);
-      uart.tx.write1(u4 >> 16);
-      uart.tx.write1(u4 >> 24);
+      written = uart.tx.write1(u4 & 0xff);
+      assert(written == 1);
+      written = uart.tx.write1(u4 >> 8);
+      assert(written == 1);
+      written = uart.tx.write1(u4 >> 16);
+      assert(written == 1);
+      written = uart.tx.write1(u4 >> 24);
+      assert(written == 1);
       total_parameter_length += 4;
       break;
 
     case 'b' :
-      uart.tx.write(va_arg(args, uint8_t *), 6);
+      written = uart.tx.write(va_arg(args, uint8_t *), 6);
+      assert(written == 6);
       total_parameter_length += 6;
       break;
 
     case 'x' :
-      uart.tx.write(va_arg(args, uint8_t *), 16);
+      written = uart.tx.write(va_arg(args, uint8_t *), 16);
+      assert(written == 16);
       total_parameter_length += 16;
       break;
 
@@ -179,24 +199,31 @@ void Baseband::send(const HCI::Command &cmd, ...) {
       const uint8_t *p, *name = va_arg(args, const uint8_t *);
       for (p=name; *p; ++p);
       size_t len = p-name;
-      uart.tx.write(name, len);
-      while (len < 248) uart.tx.write1(0);
+      written = uart.tx.write(name, len);
+      assert(written == len);
+      while (len < 248) {
+        written = uart.tx.write1(0);
+        assert(written == 1);
+      }
       total_parameter_length += 248;
       break;
     }
       
     case 'c' :
-      uart.tx.write(va_arg(args, uint8_t *), 10);
+      written = uart.tx.write(va_arg(args, uint8_t *), 10);
+      assert(written == 10);
       total_parameter_length += 10;
       break;
 
     case 'i' :
-      uart.tx.write(va_arg(args, uint8_t *), 240);
+      written = uart.tx.write(va_arg(args, uint8_t *), 240);
+      assert(written == 240);
       total_parameter_length += 240;
       break;
 
     case 'C' :
-      uart.tx.write(va_arg(args, uint8_t *), 64);
+      written = uart.tx.write(va_arg(args, uint8_t *), 64);
+      assert(written == 64);
       total_parameter_length += 64;
       break;
 
@@ -292,17 +319,22 @@ void UARTTransportReader::read_event_parameters() {
 void UARTTransportReader::packet_is_ready() {
 }
 
+extern unsigned char PatchXETU[];
+extern const int PatchXETULength;
+
 Pan1323Bootstrap::Pan1323Bootstrap(Baseband &b) :
   CSM((State) reset_pending),
   baseband(b),
-  patch_data(0),
-  patch_len(0)
+  patch_data(PatchXETU),
+  patch_len(PatchXETULength),
+  patch_offset(0)
 {
 }
 
 void Pan1323Bootstrap::event_packet(UARTTransportReader &reader) {
   if (reader.event_code == HCI::EVENT_COMMAND_COMPLETE) {
     pan1323.receive("121", &num_hci_packets, &opcode, &command_status);
+    UARTprintf("received command completion event for %04x\n", opcode);
     reader.get_next_packet();
 
     if (command_status == 0) {
@@ -311,9 +343,10 @@ void Pan1323Bootstrap::event_packet(UARTTransportReader &reader) {
     }
 
     reader.ready();
+  } else {
+    UARTprintf("received unknown event: %02x\n", reader.event_code);
+    go(this, (State) &something_bad_happened);
   }
-
-  go(this, (State) &something_bad_happened);
 }
 
 void Pan1323Bootstrap::initialize() {
@@ -331,11 +364,17 @@ void Pan1323Bootstrap::initialize() {
 }
 
 void Pan1323Bootstrap::send_patch_command() {
-  assert(patch_len >= 4);
+  assert((patch_len - patch_offset) >= 4);
 
-  size_t command_length = 4 + patch_data[3];
-  expected_opcode = (patch_data[2] << 8) + patch_data[1];
-  baseband.send(patch_data, command_length);
+  uint8_t *cmd = patch_data + patch_offset;
+
+  size_t command_length = 4 + cmd[3];
+  expected_opcode = (cmd[2] << 8) + cmd[1];
+
+  UARTprintf("patch command %04x @ %d (%d)\n", expected_opcode, patch_offset, command_length);
+  opcode = 0; // clear it out
+  baseband.send(cmd, command_length);
+  patch_offset += command_length;
 }
 
 void Pan1323Bootstrap::reset_pending() {
@@ -354,7 +393,14 @@ void Pan1323Bootstrap::read_version_info() {
                               &pan1323.local_version_info.hci_revision,
                               &pan1323.local_version_info.lmp_version,
                               &pan1323.local_version_info.manufacturer_name,
-                              &pan1323.local_version_info.lmp_subversion);
+                              &pan1323.local_version_info.lmp_subversion);   
+
+    UARTprintf("HCI Version: %d, revision: %d, lmp: %d, manufacturer: %d, lmp subversion: %d\n",
+               pan1323.local_version_info.hci_version,
+               pan1323.local_version_info.hci_revision,
+               pan1323.local_version_info.lmp_version,
+               pan1323.local_version_info.manufacturer_name,
+               pan1323.local_version_info.lmp_subversion);
 
     go(this, (State) &baud_rate_negotiated);
     pan1323.send(HCI::PAN13XX_CHANGE_BAUD_RATE, 921600L);
@@ -383,6 +429,11 @@ void Pan1323Bootstrap::baud_rate_verified() {
     UARTprintf("BD_ADDR is ");
     for (uint16_t i=0; i < sizeof(addr.data); ++i) UARTprintf("%02x:", addr.data[i]);
     UARTprintf("\n");
+
+    if (pan1323.local_version_info.hci_version != HCI::SPECIFICATION_4_0) {
+      go(this, (State) something_bad_happened);
+      return;
+    }
 
     if (patch_len > 0) {
       send_patch_command();

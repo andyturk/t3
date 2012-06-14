@@ -122,7 +122,7 @@ class Pan1323Bootstrap :
 {
   Baseband &baseband;
   uint8_t *patch_data;
-  size_t patch_len;
+  size_t patch_len, patch_offset;
   uint16_t opcode, expected_opcode;
   uint8_t num_hci_packets, command_status;
 

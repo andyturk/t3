@@ -38,6 +38,14 @@ extern "C" int main() {
   Scheduler::run_forever();
 }
 
+void main_hook() {
+  Baseband &bb = pan1323;
+  Pan1323Bootstrap &boots = bootstrapper;
+  BufferedUART &u = bb.uart;
+
+  int foo = 1;
+}
+
 extern "C" void __attribute__ ((isr)) uart_1_handler() {
   uart1.interrupt_handler();
 }
