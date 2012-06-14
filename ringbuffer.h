@@ -33,25 +33,35 @@ class RingBuffer {
     if (write_position >= read_position) {
       return (capacity - write_position) + read_position;
     } else {
-      return read_position - (write_position + 1);
+      return (read_position - write_position) - 1;
     }
   }
 
   size_t read(T *dst, size_t n) {
-    size_t read_count = 0;
+    size_t actually_read = 0;
 
-    while (n > 0 && read_capacity() > 0) {
-      size_t run = (write_position >= read_position) ?
-        (write_position - read_position) : (capacity - read_position);
+    while (n > 0) {
+      size_t run;
+
+      if (write_position >= read_position) {
+        run = write_position - read_position;
+      } else {
+        run = capacity - read_position;
+      }
+
+      if (run == 0) break;
       if (n < run) run = n;
-      for (size_t i=0; i < run; ++i) dst[i] = buffer[read_position + i];
+
+      T *p = buffer + read_position;
+      for(uint32_t i=run; i > 0; --i) *dst++ = *p++;
       read_position += run;
       if (read_position == capacity) read_position = 0;
-      read_count += run;
+
       n -= run;
+      actually_read += run;
     };
 
-    return read_count;
+    return actually_read;
   }
 
   inline T &peek(int offset) const {
@@ -77,20 +87,30 @@ class RingBuffer {
   }
 
   size_t write(const T *src, size_t n) {
-    size_t write_count = 0;
+    size_t written = 0;
 
-    while (n > 0 && write_capacity() > 0) {
-      size_t run = (write_position >= read_position) ?
-        (capacity - write_position) : (read_position - write_position);
+    while (n > 0) {
+      size_t run;
+
+      if (write_position >= read_position) {
+        run = capacity - write_position;
+      } else {
+        run = (read_position - write_position) - 1;
+      }
+
+      if (run == 0) break;
       if (n < run) run = n;
-      for (size_t i=0; i < run; ++i) buffer[write_position + i] = src[i];
+
+      T *p = buffer + write_position;
+      for (uint32_t i=run; i > 0; --i) *p++ = *src++;
       write_position += run;
       if (write_position == capacity) write_position = 0;
-      write_count += run;
+
       n -= run;
+      written += run;
     };
 
-    return write_count;
+    return written;
   }
 };
 
