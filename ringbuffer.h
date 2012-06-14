@@ -54,26 +54,26 @@ class RingBuffer {
     return read_count;
   }
 
-  inline bool read1(T &dst) {
-    return read(&dst, 1) == 1;
+  inline T &peek(int offset) const {
+    assert(abs(offset) < capacity);
+    if (offset < 0) offset += capacity;
+    uint32_t position = read_position + offset;
+    if (position > capacity) position -= capacity;
+    return buffer[position];
   }
 
-  inline T &peek(uint32_t offset) {
-    assert(offset < capacity);
-    offset += read_position;
-    if (offset > capacity) offset -= capacity;
-    return buffer[offset];
-  }
-
-  inline void advance(uint32_t offset) {
+  void skip(uint32_t offset) {
     assert(offset < capacity);
     read_position += offset;
     if (read_position > capacity) read_position -= capacity;
   }
 
-  T *write_ptr() {
-    assert(write_position < capacity);
-    return buffer + write_position;
+  inline T &poke(int offset) const {
+    assert(abs(offset) < capacity);
+    if (offset < 0) offset += capacity;
+    uint32_t position = write_position + offset;
+    if (position > capacity) position -= capacity;
+    return buffer[position];
   }
 
   size_t write(const T *src, size_t n) {
@@ -91,10 +91,6 @@ class RingBuffer {
     };
 
     return write_count;
-  }
-
-  inline bool write1(const T &src) {
-    return write(&src, 1) == 1;
   }
 };
 

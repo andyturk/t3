@@ -168,25 +168,17 @@ void UART::set_baud(uint32_t bps) {
                       UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE);
 }
 
-uint8_t UART::read1() {
-  return (uint8_t) UARTCharGet((uint32_t) base);
-}
-
 bool UART::can_read() {
   return UARTCharsAvail((uint32_t) base);
 }
-
-void UART::write1(uint8_t c) {
-  UARTCharPut((uint32_t) base, c);
-}
-
 
 bool UART::can_write() {
   return UARTSpaceAvail((uint32_t) base);
 }
 
 void UART::flush_rx_fifo() {
-  while (can_read()) read1();
+  uint8_t dummy;
+  while (can_read()) read(&dummy, 1);
 }
 
 void UART::flush_tx_buffer() {
@@ -197,7 +189,7 @@ size_t UART::read(uint8_t *dst, size_t max) {
   size_t max0 = max;
 
   while (can_read() && max > 0) {
-    *dst++ = read1();
+    *dst++ = UARTCharGet((uint32_t) base);
     max--;
   }
 
@@ -208,7 +200,7 @@ size_t UART::write(const uint8_t *src, size_t max) {
   size_t max0 = max;
 
   while (can_write() && max > 0) {
-    write1(*src++);
+    UARTCharPut((uint32_t) base, *src++);
     max--;
   }
 
@@ -232,6 +224,16 @@ void UART::set_interrupt_sources(uint32_t hal_mask) {
   ((uart_register_map *) base)->IM = stellaris_mask;
 }
 
+uint32_t UART::disable_all_interrupt_sources() {
+  uint32_t value = ((uart_register_map *) base)->IM;
+  ((uart_register_map *) base)->IM = 0;
+  return value;
+}
+
+void UART::reenable_interrupt_sources(uint32_t mask) {
+  ((uart_register_map *) base)->IM = mask;
+}
+
 uint32_t UART::clear_interrupt_cause(uint32_t mask) {
   uart_interrupt_mask cause;
   uint32_t value = 0;
@@ -253,7 +255,11 @@ uint32_t UART::clear_interrupt_cause(uint32_t mask) {
 }
 
 BufferedUART::BufferedUART(uint32_t n, uint8_t *rx, size_t rx_len, uint8_t *tx, size_t tx_len) :
-  UART(n), rx(rx, rx_len), tx(tx, tx_len), delegate(0)
+  UART(n),
+  rx(rx, rx_len),
+  tx(tx, tx_len),
+  delegate(0),
+  tx_enabled(true)
 {
 }
 
@@ -283,26 +289,55 @@ size_t BufferedUART::write(const uint8_t *src, size_t len) {
   return len;
 }
 
-void BufferedUART::write1(uint8_t c) {
-  if (!tx.write1(c)) for (;;);
-  fill_tx_fifo();
+size_t BufferedUART::read(uint8_t *buffer, size_t len) {
+  set_interrupt_enable(false);
+  len = rx.read(buffer, len);
+  set_interrupt_enable(true);
+  return len;
+}
+
+void BufferedUART::skip(size_t count) {
+  while (count > 0) {
+    set_interrupt_enable(false);
+    size_t n = rx.read_capacity();
+    if (n > count) n = count;
+    rx.skip(n);
+    count -= n;
+    set_interrupt_enable(true);
+  }
 }
 
 void BufferedUART::drain_rx_fifo() {
   while (UART::can_read() && rx.write_capacity() > 0) {
-    rx.write1(read1());
+    uint8_t byte;
+
+    UART::read(&byte, 1);
+    rx.write(&byte, 1);
   }
 }
 
-void BufferedUART::fill_tx_fifo() {
-  while (UART::can_write() && tx.read_capacity() > 0) {
-    uint8_t byte;
-    tx.read1(byte);
-    UART::write1(byte);
-  }
+bool BufferedUART::set_tx_enable(bool value) {
+  bool old = tx_enabled;
+  tx_enabled = value;
 
-  // enable the tx interrupt if there's more data in the ringbuffer
-  set_interrupt_sources(UART::RX | UART::ERROR | (tx.read_capacity() > 0 ? UART::TX : 0));
+  if (tx_enabled) fill_tx_fifo();
+  return old;
+}
+
+void BufferedUART::fill_tx_fifo() {
+  set_interrupt_enable(false);
+  if (tx_enabled) {
+    while (UART::can_write() && tx.read_capacity() > 0) {
+      uint8_t byte;
+
+      tx.read(&byte, 1);
+      UART::write(&byte, 1);
+    }
+
+    // enable the tx interrupt if there's more data in the ringbuffer
+    set_interrupt_sources(UART::RX | UART::ERROR | (tx.read_capacity() > 0 ? UART::TX : 0));
+  }
+  set_interrupt_enable(true);
 }
 
 void BufferedUART::flush_tx_buffer() {

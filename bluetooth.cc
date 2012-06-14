@@ -35,7 +35,7 @@ extern Baseband pan1323;
 Baseband::Baseband(BufferedUART &uart, IOPin &shutdown) :
   uart(uart),
   shutdown(shutdown),
-  reader(uart.rx)
+  reader(uart)
 {
   uart.set_delegate(this);
 }
@@ -61,46 +61,46 @@ void Baseband::receive(const char *format, ...) {
   while (*format) {
     switch (*format++) {
     case '1' :
-      uart.rx.read1(*va_arg(args, uint8_t *));
+      uart.read(va_arg(args, uint8_t *), 1);
       break;
 
     case '2' :
-      uart.rx.read(va_arg(args, uint8_t *), 2);
+      uart.read(va_arg(args, uint8_t *), 2);
       break;
 
     case '3' : {
       uint32_t *arg = va_arg(args, uint32_t *);
       *arg = 0;
-      uart.rx.read((uint8_t *) arg, 3);
+      uart.read((uint8_t *) arg, 3);
       break;
     }
 
     case '4' :
-      uart.rx.read(va_arg(args, uint8_t *), 4);
+      uart.read(va_arg(args, uint8_t *), 4);
       break;
 
     case 'b' :
-      uart.rx.read(va_arg(args, uint8_t *), 6);
+      uart.read(va_arg(args, uint8_t *), 6);
       break;
 
     case 'x' :
-      uart.rx.read(va_arg(args, uint8_t *), 16);
+      uart.read(va_arg(args, uint8_t *), 16);
       break;
 
     case 'n' :
-      uart.rx.read(va_arg(args, uint8_t *), 248);
+      uart.read(va_arg(args, uint8_t *), 248);
       break;
 
     case 'c' :
-      uart.rx.read(va_arg(args, uint8_t *), 10);
+      uart.read(va_arg(args, uint8_t *), 10);
       break;
 
     case 'i' :
-      uart.rx.read(va_arg(args, uint8_t *), 240);
+      uart.read(va_arg(args, uint8_t *), 240);
       break;
 
     case 'C' :
-      uart.rx.read(va_arg(args, uint8_t *), 64);
+      uart.read(va_arg(args, uint8_t *), 64);
       break;
 
     case '[' :
@@ -115,82 +115,69 @@ void Baseband::receive(const char *format, ...) {
 void Baseband::send(uint8_t *data, size_t length) {
   size_t written;
 
-  written = uart.tx.write(data, length);
+  written = uart.write(data, length);
   assert(written == length);
-  uart.fill_tx_fifo();
 }
 
 void Baseband::send(const HCI::Command &cmd, ...) {
   size_t written;
   va_list args;
   va_start(args, cmd);
+  uint8_t header[] = {HCI::COMMAND_PACKET, cmd.opcode & 0xff, cmd.opcode >> 8, 0};
 
-  written = uart.tx.write1(HCI::COMMAND_PACKET);
-  assert(written == 1);
-  written = uart.tx.write1(cmd.opcode &0xff);
-  assert(written == 1);
-  written = uart.tx.write1(cmd.opcode >> 8);
-  assert(written == 1);
+  // prevent the UART from actually sending the command string
+  // until it's completely written into the buffer
 
-  uint8_t &total_parameter_length = *uart.tx.write_ptr();
-  written = uart.tx.write1(0); // total_parameter_length
-  assert(written == 1);
+  uart.set_tx_enable(false);
+  written = uart.write(header, sizeof(header));
+  assert(written == sizeof(header));
 
-  total_parameter_length = 0;
+  uint8_t &total_parameter_length = uart.poke(-1);
+  assert(total_parameter_length == 0);
 
   const char *p = cmd.send;
+  uint8_t u1;
   uint16_t u2;
-  uint32_t u3, u4;
+  uint32_t u4;
 
   while (*p) {
     switch (*p++) {
     case '1' :
-      written = uart.tx.write1((uint8_t) va_arg(args, int));
+      u1 = va_arg(args, int);
+      written = uart.write(&u1, 1);
       assert(written == 1);
       total_parameter_length += 1;
       break;
       
     case '2' :
-      u2 = (uint16_t) va_arg(args, int);
-      written = uart.tx.write1(u2 & 0xff);
-      assert(written == 1);
-      written = uart.tx.write1(u2 >> 8);
-      assert(written == 1);
+      u2 = va_arg(args, int);
+      written = uart.write((uint8_t*) &u2, 2);
+      assert(written == 2);
       total_parameter_length += 2;
       break;
 
     case '3' :
-      u3 = va_arg(args, uint32_t);
-      written = uart.tx.write1(u3 & 0xff);
-      assert(written == 1);
-      written = uart.tx.write1(u3 >> 8);
-      assert(written == 1);
-      written = uart.tx.write1(u3 >> 16);
-      assert(written == 1);
+      u4 = va_arg(args, uint32_t);
+      written = uart.write((uint8_t*) &u4, 3);
+      assert(written == 3);
       total_parameter_length += 3;
       break;
 
     case '4' :
       u4 = va_arg(args, uint32_t);
-      written = uart.tx.write1(u4 & 0xff);
-      assert(written == 1);
-      written = uart.tx.write1(u4 >> 8);
-      assert(written == 1);
-      written = uart.tx.write1(u4 >> 16);
-      assert(written == 1);
-      written = uart.tx.write1(u4 >> 24);
-      assert(written == 1);
+      written = uart.write((uint8_t*) &u4, 4);
+      assert(written == 4);
       total_parameter_length += 4;
       break;
 
     case 'b' :
-      written = uart.tx.write(va_arg(args, uint8_t *), 6);
+      written = uart.write(va_arg(args, uint8_t *), 6);
       assert(written == 6);
       total_parameter_length += 6;
       break;
 
     case 'x' :
-      written = uart.tx.write(va_arg(args, uint8_t *), 16);
+      written = uart.write(va_arg(args, uint8_t *), 16);
       assert(written == 16);
       total_parameter_length += 16;
       break;
@@ -199,10 +186,11 @@ void Baseband::send(const HCI::Command &cmd, ...) {
       const uint8_t *p, *name = va_arg(args, const uint8_t *);
       for (p=name; *p; ++p);
       size_t len = p-name;
-      written = uart.tx.write(name, len);
+      written = uart.write(name, len);
       assert(written == len);
+      uint8_t zero = 0;
       while (len < 248) {
-        written = uart.tx.write1(0);
+        written = uart.write(&zero, 1);
         assert(written == 1);
       }
       total_parameter_length += 248;
@@ -210,19 +198,19 @@ void Baseband::send(const HCI::Command &cmd, ...) {
     }
       
     case 'c' :
-      written = uart.tx.write(va_arg(args, uint8_t *), 10);
+      written = uart.write(va_arg(args, uint8_t *), 10);
       assert(written == 10);
       total_parameter_length += 10;
       break;
 
     case 'i' :
-      written = uart.tx.write(va_arg(args, uint8_t *), 240);
+      written = uart.write(va_arg(args, uint8_t *), 240);
       assert(written == 240);
       total_parameter_length += 240;
       break;
 
     case 'C' :
-      written = uart.tx.write(va_arg(args, uint8_t *), 64);
+      written = uart.write(va_arg(args, uint8_t *), 64);
       assert(written == 64);
       total_parameter_length += 64;
       break;
@@ -233,7 +221,7 @@ void Baseband::send(const HCI::Command &cmd, ...) {
     }
   }
 
-  uart.fill_tx_fifo();
+  uart.set_tx_enable(true);
   va_end(args);
 }
 
@@ -249,12 +237,12 @@ void Baseband::event_packet(UARTTransportReader &packet) {
   extern IOPin led1;
 
   led1.set_value(1);
-  uart.rx.advance(packet.packet_size);
+  uart.skip(packet.packet_size);
 }
 
-UARTTransportReader::UARTTransportReader(RingBuffer<uint8_t> &buffer) :
+UARTTransportReader::UARTTransportReader(BufferedUART &input) :
   CSM((State) read_packet_indicator),
-  input(buffer),
+  input(input),
   delegate(0)
 {
 }
@@ -273,7 +261,7 @@ void UARTTransportReader::bad_packet_indicator() {
 void UARTTransportReader::read_packet_indicator() {
   if (input.read_capacity() == 0) return;
 
-  input.read1(packet_type); // consume packet indicator
+  input.read(&packet_type, 1); // consume packet indicator
 
   switch (packet_type) {
   case HCI::EVENT_PACKET :
@@ -295,8 +283,8 @@ void UARTTransportReader::read_event_code_and_length() {
 
   uint8_t octet;
 
-  input.read1(event_code);
-  input.read1(octet);
+  input.read(&event_code, 1);
+  input.read(&octet, 1);
   packet_size = (size_t) octet;
 
   go(this, (State) &read_event_parameters);
@@ -310,7 +298,7 @@ void UARTTransportReader::read_event_parameters() {
   if (delegate) {
     delegate->event_packet(*this);
   } else {
-    input.advance(packet_size);
+    input.skip(packet_size);
   }
 
   (*this)();

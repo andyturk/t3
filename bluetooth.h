@@ -60,7 +60,7 @@ class UARTTransportReader : public CSM {
     virtual void synchronous_packet(UARTTransportReader &r) {};
   };
 
-  UARTTransportReader(RingBuffer<uint8_t> &buf);
+  UARTTransportReader(BufferedUART &input);
   void set_delegate(Delegate *delegate);
 
   uint8_t packet_type;
@@ -70,7 +70,7 @@ class UARTTransportReader : public CSM {
   uint8_t acl_bounary, acl_broadcast, synchronous_status;
   uint16_t handle;
 
-  RingBuffer<uint8_t> &input;
+  BufferedUART &input;
   void get_next_packet();
 
  private:

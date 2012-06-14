@@ -68,12 +68,11 @@ class UART : public Peripheral {
   void set_baud(uint32_t bps);
   uint32_t clear_interrupt_cause(uint32_t mask);
   void set_interrupt_sources(uint32_t mask);
-
+  uint32_t disable_all_interrupt_sources();
+  void reenable_interrupt_sources(uint32_t mask);
   virtual void flush_rx_fifo();
   virtual void flush_tx_buffer();
   virtual bool can_read();
-  virtual uint8_t read1();
-  virtual void write1(uint8_t c);
   virtual bool can_write();
   virtual size_t read(uint8_t *dst, size_t max);
   virtual size_t write(const uint8_t *src, size_t max);
@@ -87,20 +86,25 @@ class BufferedUART : public UART {
     virtual void error_occurred(BufferedUART *u) = 0;
   };
 
-  RingBuffer<uint8_t> rx;
-  RingBuffer<uint8_t> tx;
-
   BufferedUART(uint32_t n, uint8_t *rx, size_t rx_len, uint8_t *tx, size_t tx_len);
   virtual size_t write(const uint8_t *buffer, size_t length);
-  virtual void write1(uint8_t c);
+  virtual size_t read(uint8_t *buffer, size_t length);
+  void skip(size_t length);
   void interrupt_handler();
   void drain_rx_fifo();
   void fill_tx_fifo();
   virtual void flush_tx_buffer();
+  inline uint8_t &peek(int offset) { return rx.peek(offset);}
+  inline uint8_t &poke(int offset) { return tx.poke(offset);}
+  bool set_tx_enable(bool value);
   void set_delegate(Delegate *delegate) {this->delegate = delegate;}
+  inline size_t read_capacity() {return rx.read_capacity();}
 
  protected:
+  RingBuffer<uint8_t> rx;
+  RingBuffer<uint8_t> tx;
   Delegate *delegate;
+  bool tx_enabled;
 };
 
 class UART0 : public UART {
