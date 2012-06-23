@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <cstdlib>
 
-#include "ringbuffer.h"
+#include "buffer.h"
 #include "assert.h"
 
 class CPU {

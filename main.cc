@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "ringbuffer.h"
+#include "buffer.h"
 #include "hal.h"
 #include "bluetooth.h"
 #include "scheduler.h"
