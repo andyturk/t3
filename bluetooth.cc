@@ -441,10 +441,11 @@ void Pan1323Bootstrap::verify_patch_command() {
     return;
   }
 
-  if (patch_len > 0) {
+  if (patch_offset < patch_len) {
     send_patch_command();
   } else {
     go(this, (State) bootstrap_complete);
+    ready();
   }
 }
 
