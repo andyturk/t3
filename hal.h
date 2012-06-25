@@ -113,10 +113,7 @@ class UART0 : public UART {
   virtual void configure();
 };
 
-class UART1 : public BufferedUART {
-  uint8_t rx_buffer[512];
-  uint8_t tx_buffer[512];
-
+class UART1 : public UART {
  public:
   UART1();
   virtual void configure();

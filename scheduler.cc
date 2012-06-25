@@ -40,7 +40,7 @@ void Scheduler::run_forever() {
   extern IOPin led1;
   extern void main_hook();
   do {
-    main_hook();
+    //main_hook();
     run_once();
     led1.set_value(1);
     asm volatile ("wfi");

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdlib>
+#include <stdint.h>
 #include "assert.h"
 
 template<class T>
@@ -14,18 +15,23 @@ class FlipBuffer {
     NO_MARK = 0xffffffff
   };
 
-  FlipBuffer(T *s, size_t c) : storage(s), capacity(c), mark(NO_MARK), position(0), limit(c) {}
+  FlipBuffer(T *s, size_t c) : storage(s), capacity(c), position(0), limit(c), mark(NO_MARK) {}
   size_t get_capacity() const {return capacity;}
   size_t get_position() const {return position;}
   size_t get_limit() const {return limit;}
-  size_t get_remaining() const {return limit - capacity;}
+  size_t get_mark() const {return mark;}
+  size_t get_remaining() const {return limit - position;}
 
-  void clear() {position = 0; limit = capacity;}
+  void set_limit(size_t l) {limit = l;}
+  void reset() {position = 0; limit = capacity; mark = NO_MARK;}
   void flip() {limit = position; position = 0;}
   void rewind() {position = 0;}
+  void set_mark() {mark = position;}
+  void back_to_mark() {position = mark;}
   
   T get() {return storage[position++];}
-  void put(const T x) {if (position < limit) storage[position++] = x;}
+  T peek(int offset) {return storage[position + offset];}
+  void put(const T x) {assert(position < limit); storage[position++] = x;}
 };
 
 template<class T>

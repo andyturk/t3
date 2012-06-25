@@ -1,8 +1,30 @@
 #include "bluetooth.h"
+#include "hci.h"
 #include "register_defs.h"
 #include "utils/uartstdio.h"
 
+/*
 namespace HCI {
+  #pragma push_macro("BEGIN_COMMANDS")
+  #pragma push_macro("COMMAND")
+  #pragma push_macro("END_COMMANDS")
+  #pragma push_macro("BEGIN_EVENTS")
+  #pragma push_macro("EVENT")
+  #pragma push_macro("END_EVENTS")
+  #pragma push_macro("BEGIN_LE_EVENTS")
+  #pragma push_macro("LE_EVENT")
+  #pragma push_macro("END_LE_EVENTS")
+
+  #undef BEGIN_COMMANDS
+  #undef COMMAND
+  #undef END_COMMANDS
+  #undef BEGIN_EVENTS
+  #undef EVENT
+  #undef END_EVENTS
+  #undef BEGIN_LE_EVENTS
+  #undef LE_EVENT
+  #undef END_LE_EVENTS
+
   #define BEGIN_COMMANDS
   #define COMMAND(ogf,ocf,name,send,expect) HCI::Command name = {OPCODE(ogf,ocf), send};
   #define END_COMMANDS
@@ -17,18 +39,17 @@ namespace HCI {
 
   #include "command_defs.h"
 
-  #undef BEGIN_COMMANDS
-  #undef COMMAND
-  #undef END_COMMANDS
-
-  #undef BEGIN_EVENTS
-  #undef EVENT
-  #undef END_EVENTS
-
-  #undef BEGIN_LE_EVENTS
-  #undef LE_EVENT
-  #undef END_LE_EVENTS
+  #pragma pop_macro("BEGIN_COMMANDS")
+  #pragma pop_macro("COMMAND")
+  #pragma pop_macro("END_COMMANDS")
+  #pragma pop_macro("BEGIN_EVENTS")
+  #pragma pop_macro("EVENT")
+  #pragma pop_macro("END_EVENTS")
+  #pragma pop_macro("BEGIN_LE_EVENTS")
+  #pragma pop_macro("LE_EVENT")
+  #pragma pop_macro("END_LE_EVENTS")
 };
+*/
 
 extern Baseband pan1323;
 

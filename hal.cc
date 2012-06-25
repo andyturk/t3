@@ -359,8 +359,7 @@ void UART0::configure() {
   GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 }
 
-UART1::UART1() :
-  BufferedUART(1, rx_buffer, sizeof(rx_buffer), tx_buffer, sizeof(tx_buffer))
+UART1::UART1() : UART(1)
 {
 }
 

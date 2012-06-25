@@ -6,7 +6,9 @@
 #include "hal.h"
 #include "statemachine.h"
 #include "scheduler.h"
+#include "hci.h"
 
+/*
 namespace HCI {
   enum packet_indicator {
     COMMAND_PACKET          = 0x01,
@@ -50,6 +52,7 @@ namespace HCI {
   #undef LE_EVENT
   #undef END_LE_EVENTS
 };
+*/
 
 class UARTTransportReader : public CSM {
  public:
