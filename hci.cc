@@ -488,7 +488,6 @@ void BBand::initialization_command_complete(uint16_t opcode, Packet *p) {
 
   switch (opcode) {
   case OPCODE_RESET :
-    p->reset();
     p->command(OPCODE_READ_LOCAL_VERSION_INFORMATION);
     break;
 
@@ -498,20 +497,17 @@ void BBand::initialization_command_complete(uint16_t opcode, Packet *p) {
     p->fget("12122", &hci_version, &hci_revision, &lmp_version, &manufacturer_name, &lmp_subversion);
     assert(hci_version == SPECIFICATION_4_0);
 
-    p->reset();
     p->command(OPCODE_PAN13XX_CHANGE_BAUD_RATE, "4", 921600L);
     break;
   }
 
   case OPCODE_PAN13XX_CHANGE_BAUD_RATE :
     uart.set_baud(921600L);
-    p->reset();
     p->command(OPCODE_READ_BD_ADDR);
     break;
 
   case OPCODE_READ_BD_ADDR :
     p->fget("b", &bd_addr);
-    p->reset();
 
     // initialize the patch state
     extern const unsigned char PatchXETU[];
