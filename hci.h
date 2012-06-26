@@ -109,7 +109,7 @@ namespace HCI {
   };
 
   class Packet : public FlipBuffer<uint8_t> {
-    enum {MAX_PACKET = 257};
+    enum {MAX_PACKET = 259};
     uint8_t buf[MAX_PACKET];
 
   public:
@@ -156,6 +156,14 @@ class BBand {
   void read_version_info(HCI::Packet *p);
   void baud_rate_negotiated(HCI::Packet *p);
   void read_bd_addr(HCI::Packet *p);
+  void send_patch_command(HCI::Packet *p);
+
+  struct {
+    uint16_t expected_opcode;
+    size_t offset;
+    size_t length;
+    uint8_t *data;
+  } patch_state;
 
  public:
   BBand(UART &u, IOPin &s);

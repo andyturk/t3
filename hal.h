@@ -66,6 +66,7 @@ class UART : public Peripheral {
 
   void set_enable(bool value);
   void set_baud(uint32_t bps);
+  void set_fifo_enable(bool value);
   uint32_t clear_interrupt_cause(uint32_t mask);
   void set_interrupt_sources(uint32_t mask);
   uint32_t disable_all_interrupt_sources();

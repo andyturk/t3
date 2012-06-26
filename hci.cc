@@ -326,6 +326,10 @@ void BBand::fill_uart() {
       uart.set_interrupt_enable(true);
     }
   }
+
+  if (tx->get_remaining() > 0) {
+    uart.set_interrupt_sources(UART::RX | UART::TX | UART::ERROR);
+  }
 }
 
 void BBand::uart_interrupt_handler() {
@@ -344,6 +348,9 @@ void BBand::uart_interrupt_handler() {
 
 void BBand::initialize() {
   shutdown.set_value(0); // assert SHUTDOWN
+  uart.set_enable(false);
+  uart.set_fifo_enable(false);
+  uart.set_fifo_enable(true);
   uart.set_baud(115200);
   uart.set_enable(true);
 
@@ -496,4 +503,42 @@ void BBand::read_bd_addr(Packet *p) {
   UARTprintf("BD_ADDR is ");
   for (uint16_t i=0; i < sizeof(bd_addr.data); ++i) UARTprintf("%02x:", bd_addr.data[i]);
   UARTprintf("\n");
+
+  packet_handler = &send_patch_command;
+
+  // initialize the patch state
+  extern const unsigned char PatchXETU[];
+  extern const int PatchXETULength;
+  
+  patch_state.expected_opcode = 0;
+  patch_state.offset = 0;
+  patch_state.length = PatchXETULength;
+  patch_state.data = (uint8_t *) PatchXETU;
+
+  send_patch_command(p);
+}
+
+void BBand::send_patch_command(Packet *p) {
+  if (patch_state.expected_opcode != 0) {
+    p->fget("E %1 ?? %2 0", EVENT_COMMAND_COMPLETE, patch_state.expected_opcode);
+  }
+
+  if (patch_state.offset < patch_state.length) {
+    assert((patch_state.length - patch_state.offset) >= 4);
+
+    p->reset();
+    uint8_t *cmd = patch_state.data + patch_state.offset;
+    size_t command_length = 4 + cmd[3];
+    patch_state.expected_opcode = (cmd[2] << 8) + cmd[1];
+
+    for (size_t i=0; i < command_length; ++i) p->put(cmd[i]);
+    patch_state.offset += command_length;
+    UARTprintf("patch command %04x @ %d (%d)\n",
+               patch_state.expected_opcode, patch_state.offset - command_length, command_length);
+    p->flip();
+    send(p);
+  } else {
+    deallocate_packet(p);
+    UARTprintf("initialization complete\n");
+  }
 }

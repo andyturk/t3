@@ -163,6 +163,11 @@ void UART::set_enable(bool value) {
   UARTEnable((uint32_t) base);
 }
 
+void UART::set_fifo_enable(bool value) {
+  if (value) UARTFIFOEnable ((uint32_t) base);
+  else       UARTFIFODisable((uint32_t) base);
+}
+
 void UART::set_baud(uint32_t bps) {
   UARTConfigSetExpClk((uint32_t) base, SysCtlClockGet(), bps,
                       UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE);
