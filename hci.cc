@@ -350,17 +350,16 @@ void BBand::initialize() {
   uart.set_baud(115200);
   uart.set_enable(true);
 
-  tx = allocate_packet();
-  tx->reset();
-  tx->command(OPCODE_RESET);
-
   rx = allocate_packet();
   rx->reset();
   rx->set_limit(1);
   rx_state = &rx_expect_packet_indicator;
 
   uart.set_interrupt_sources(UART::RX | UART::ERROR);
-  command_complete_handler = &initialization_command_complete;
+
+  tx = allocate_packet();
+  command_complete_handler = &cold_boot;
+  cold_boot(0, tx);
 
   shutdown.set_value(1); // clear SHUTDOWN
   uart.set_interrupt_enable(true);
@@ -482,11 +481,23 @@ void BBand::standard_packet_handler(Packet *p) {
   }
 }
 
-void BBand::initialization_command_complete(uint16_t opcode, Packet *p) {
-  uint8_t status = p->get();
-  assert(status == SUCCESS);
+void BBand::cold_boot(uint16_t opcode, Packet *p) {
+  if (opcode != 0) {
+    uint8_t status = p->get();
+    assert(status == SUCCESS);
+  }
 
   switch (opcode) {
+  case 0 :
+    // This case runs before the uart is enabled, so we simply
+    // format the tx packet and set p=0 to prevent it from
+    // being sent at this time. Later on, the calling code will
+    // send the contents of the tx buffer through the uart.
+    tx->command(OPCODE_RESET);
+    p = 0;
+
+    break;
+
   case OPCODE_RESET :
     p->command(OPCODE_READ_LOCAL_VERSION_INFORMATION);
     break;
@@ -503,11 +514,6 @@ void BBand::initialization_command_complete(uint16_t opcode, Packet *p) {
 
   case OPCODE_PAN13XX_CHANGE_BAUD_RATE :
     uart.set_baud(921600L);
-    p->command(OPCODE_READ_BD_ADDR);
-    break;
-
-  case OPCODE_READ_BD_ADDR :
-    p->fget("b", &bd_addr);
 
     // initialize the patch state
     extern const unsigned char PatchXETU[];
@@ -518,15 +524,15 @@ void BBand::initialization_command_complete(uint16_t opcode, Packet *p) {
     patch_state.length = PatchXETULength;
     patch_state.data = (uint8_t *) PatchXETU;
 
-    command_complete_handler = &patch_command_complete;
-    patch_command_complete(0, p);
+    command_complete_handler = &upload_patch;
+    upload_patch(0, p);
     p = 0;
   }
 
   if (p) send(p);
 }
 
-void BBand::patch_command_complete(uint16_t opcode, Packet *p) {
+void BBand::upload_patch(uint16_t opcode, Packet *p) {
   assert(opcode == patch_state.expected_opcode);
 
   if (patch_state.offset < patch_state.length) {
@@ -544,8 +550,51 @@ void BBand::patch_command_complete(uint16_t opcode, Packet *p) {
     p->flip();
     send(p);
   } else {
-    deallocate_packet(p);
-    UARTprintf("initialization complete\n");
+    UARTprintf("patching complete\n");
+    command_complete_handler = &warm_boot;
+    warm_boot(0, p);
   }
+}
+
+void BBand::warm_boot(uint16_t opcode, Packet *p) {
+  if (opcode != 0) {
+    uint8_t status = p->get();
+    assert(status == SUCCESS);
+  }
+
+  switch (opcode) {
+  case 0 :
+    UARTprintf("warm boot...\n");
+    p->command(OPCODE_READ_BD_ADDR);
+    break;
+
+  case OPCODE_READ_BD_ADDR :
+    p->fget("b", &bd_addr);
+
+    UARTprintf("bd_addr = ");
+    for (int i=5; i >= 0; --i) UARTprintf("%02x:", bd_addr.data[i]);
+    UARTprintf("\n");
+
+    p->command(OPCODE_READ_BUFFER_SIZE_COMMAND);
+    break;
+
+  case OPCODE_READ_BUFFER_SIZE_COMMAND : {
+    uint16_t acl_data_length, num_acl_packets, num_synchronous_packets;
+    uint8_t synchronous_data_length;
+
+    p->fget("2122", &acl_data_length, &synchronous_data_length,
+                    &num_acl_packets, &num_synchronous_packets);
+
+    UARTprintf("acl: %d @ %d, synchronous: %d @ %d\n",
+               num_acl_packets, acl_data_length,
+               num_synchronous_packets, synchronous_data_length);
+    
+    deallocate_packet(p);
+    p = 0;
+    break;
+  }
+  }
+
+  if (p) send(p);
 }
 

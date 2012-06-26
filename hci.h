@@ -150,8 +150,9 @@ class BBand {
   void rx_expect_event_parameters();
 
   // initialization states
-  void initialization_command_complete(uint16_t opcode, HCI::Packet *p);
-  void patch_command_complete(uint16_t opcode, HCI::Packet *p);
+  void cold_boot(uint16_t opcode, HCI::Packet *p);
+  void upload_patch(uint16_t opcode, HCI::Packet *p);
+  void warm_boot(uint16_t, HCI::Packet *p);
 
   void standard_packet_handler(HCI::Packet *p);
 
