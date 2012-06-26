@@ -112,11 +112,13 @@ namespace HCI {
     enum {MAX_PACKET = 259};
     uint8_t buf[MAX_PACKET];
 
+    void vfput(const char *format, va_list args);
+
   public:
     Packet *next;
 
     Packet() : FlipBuffer<uint8_t>(buf, MAX_PACKET), next(0) {}
-    void fput(HCI::Command const &cmd, ...);
+    void command(uint16_t opcode, const char *format = 0, ...);
     void fget(const char *format, ...);
   };
 
@@ -134,7 +136,6 @@ class BBand {
   HCI::Packet *free_packets;
   HCI::Packet *incoming_packets;
 
-  void (*packet_handler)(BBand *, HCI::Packet *);
   void (*event_handler)(BBand *, uint8_t event, HCI::Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, HCI::Packet *);
 
@@ -158,11 +159,6 @@ class BBand {
   void patch_command_complete(uint16_t opcode, HCI::Packet *p);
 
   void standard_packet_handler(HCI::Packet *p);
-  void reset_pending(HCI::Packet *p);
-  void read_version_info(HCI::Packet *p);
-  void baud_rate_negotiated(HCI::Packet *p);
-  void read_bd_addr(HCI::Packet *p);
-  void send_patch_command(HCI::Packet *p);
 
   struct {
     uint16_t expected_opcode;

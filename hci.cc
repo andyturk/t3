@@ -29,29 +29,62 @@ namespace HCI {
 
 using namespace HCI;
 
-void HCI::Packet::fput(HCI::Command const &cmd, ...) {
-  va_list args;
-  va_start(args, cmd);
-
+void Packet::command(uint16_t opcode, const char *format, ...) {
   reset();
-
   put(HCI::COMMAND_PACKET);
-  put(cmd.opcode & 0xff);
-  put(cmd.opcode >> 8);
+  
+  put(opcode & 0xff);
+  put(opcode >> 8);
 
   set_mark();
 
   put(0x00); // will be replaced with length later
 
-  const size_t param0 = get_position();
+  if (format == 0) {
+    flip();
+  } else {
+    size_t param0 = get_position();
 
-  const char *p = cmd.send;
+    va_list args;
+    va_start(args, format);
+
+    vfput(format, args);
+
+    size_t total_parameter_length = get_position() - param0;
+    assert(total_parameter_length <= 255);
+
+    flip();
+    back_to_mark();
+    put(total_parameter_length);
+    rewind();
+
+    va_end(args);
+  }
+}
+
+void Packet::vfput(const char *format, va_list args) {
   uint8_t u1;
   uint16_t u2;
   uint32_t u4;
 
-  while (*p) {
-    switch (*p++) {
+  while (*format) {
+    switch (*format++) {
+    case 'C' :
+      put(COMMAND_PACKET);
+      break;
+
+    case 'A' :
+      put(ACL_PACKET);
+      break;
+
+    case 'D' :
+      put(SYNCHRONOUS_DATA_PACKET);
+      break;
+
+    case 'E' :
+      put(EVENT_PACKET);
+      break;
+
     case '1' :
       u1 = va_arg(args, int);
       put(u1);
@@ -130,16 +163,6 @@ void HCI::Packet::fput(HCI::Command const &cmd, ...) {
       for(;;);
     }
   }
-
-  size_t total_parameter_length = get_position() - param0;
-  assert(total_parameter_length <= 255);
-
-  flip();
-  back_to_mark();
-  put(total_parameter_length);
-  rewind();
-
-  va_end(args);
 }
 
 void HCI::Packet::fget(const char *format, ...) {
@@ -294,8 +317,7 @@ BBand::BBand(UART &u, IOPin &s) :
   rx(0), rx_state(0),
   tx(0), 
   free_packets(0),
-  incoming_packets(0),
-  packet_handler(&deallocate_packet)
+  incoming_packets(0)
 {
   // initialize free packet pool
   // all packets are free to start with
@@ -356,7 +378,7 @@ void BBand::initialize() {
 
   tx = allocate_packet();
   tx->reset();
-  tx->fput(HCI::RESET);
+  tx->command(OPCODE_RESET);
 
   rx = allocate_packet();
   rx->reset();
@@ -364,7 +386,6 @@ void BBand::initialize() {
   rx_state = &rx_expect_packet_indicator;
 
   uart.set_interrupt_sources(UART::RX | UART::ERROR);
-  packet_handler = &reset_pending;
   command_complete_handler = &initialization_command_complete;
 
   shutdown.set_value(1); // clear SHUTDOWN
@@ -494,7 +515,7 @@ void BBand::initialization_command_complete(uint16_t opcode, Packet *p) {
   switch (opcode) {
   case OPCODE_RESET :
     p->reset();
-    p->fput(READ_LOCAL_VERSION_INFORMATION);
+    p->command(OPCODE_READ_LOCAL_VERSION_INFORMATION);
     break;
 
   case OPCODE_READ_LOCAL_VERSION_INFORMATION : {
@@ -504,14 +525,14 @@ void BBand::initialization_command_complete(uint16_t opcode, Packet *p) {
     assert(hci_version == SPECIFICATION_4_0);
 
     p->reset();
-    p->fput(PAN13XX_CHANGE_BAUD_RATE, 921600L);
+    p->command(OPCODE_PAN13XX_CHANGE_BAUD_RATE, "4", 921600L);
     break;
   }
 
   case OPCODE_PAN13XX_CHANGE_BAUD_RATE :
     uart.set_baud(921600L);
     p->reset();
-    p->fput(READ_BD_ADDR);
+    p->command(OPCODE_READ_BD_ADDR);
     break;
 
   case OPCODE_READ_BD_ADDR :
@@ -558,84 +579,3 @@ void BBand::patch_command_complete(uint16_t opcode, Packet *p) {
   }
 }
 
-void BBand::reset_pending(HCI::Packet *p) {
-  p->fget("E %1 ?? %2 0", EVENT_COMMAND_COMPLETE, RESET.opcode);
-  // use the same packet to send the next message
-  p->reset();
-  p->fput(READ_LOCAL_VERSION_INFORMATION);
-  packet_handler = &read_version_info;
-  send(p);
-}
-
-void BBand::read_version_info(HCI::Packet *p) {
-  uint8_t hci_version, lmp_version;
-  uint16_t hci_revision, manufacturer_name, lmp_subversion;
-
-  p->fget("E %1 ?? %2 0 12122", EVENT_COMMAND_COMPLETE, READ_LOCAL_VERSION_INFORMATION.opcode,
-          &hci_version, &hci_revision, &lmp_version,
-          &manufacturer_name, &lmp_subversion);
-
-  assert(hci_version == SPECIFICATION_4_0);
-
-  p->reset();
-  p->fput(PAN13XX_CHANGE_BAUD_RATE, 921600L);
-  packet_handler = &baud_rate_negotiated;
-  send(p);
-}
-
-void BBand::baud_rate_negotiated(Packet *p) {
-  p->fget("E %1 ?? %2 0", EVENT_COMMAND_COMPLETE, PAN13XX_CHANGE_BAUD_RATE.opcode);
-
-  uart.set_baud(921600L);
-  p->reset();
-  p->fput(READ_BD_ADDR);
-  packet_handler = &read_bd_addr;
-  send(p);
-}
-
-void BBand::read_bd_addr(Packet *p) {
-  p->fget("E %1 ?? %2 0 b", EVENT_COMMAND_COMPLETE, READ_BD_ADDR.opcode, &bd_addr);
-  p->reset();
-
-  UARTprintf("BD_ADDR is ");
-  for (uint16_t i=0; i < sizeof(bd_addr.data); ++i) UARTprintf("%02x:", bd_addr.data[i]);
-  UARTprintf("\n");
-
-  packet_handler = &send_patch_command;
-
-  // initialize the patch state
-  extern const unsigned char PatchXETU[];
-  extern const int PatchXETULength;
-  
-  patch_state.expected_opcode = 0;
-  patch_state.offset = 0;
-  patch_state.length = PatchXETULength;
-  patch_state.data = (uint8_t *) PatchXETU;
-
-  send_patch_command(p);
-}
-
-void BBand::send_patch_command(Packet *p) {
-  if (patch_state.expected_opcode != 0) {
-    p->fget("E %1 ?? %2 0", EVENT_COMMAND_COMPLETE, patch_state.expected_opcode);
-  }
-
-  if (patch_state.offset < patch_state.length) {
-    assert((patch_state.length - patch_state.offset) >= 4);
-
-    p->reset();
-    uint8_t *cmd = patch_state.data + patch_state.offset;
-    size_t command_length = 4 + cmd[3];
-    patch_state.expected_opcode = (cmd[2] << 8) + cmd[1];
-
-    for (size_t i=0; i < command_length; ++i) p->put(cmd[i]);
-    patch_state.offset += command_length;
-    UARTprintf("patch command %04x @ %d (%d)\n",
-               patch_state.expected_opcode, patch_state.offset - command_length, command_length);
-    p->flip();
-    send(p);
-  } else {
-    deallocate_packet(p);
-    UARTprintf("initialization complete\n");
-  }
-}
