@@ -124,18 +124,20 @@ namespace HCI {
 
 class BBand {
   enum {PACKET_POOL_SIZE = 4};
-  typedef void (*uart_state)(BBand *);
-  typedef void (*packet_state)(BBand *, HCI::Packet *);
 
   UART &uart;
   IOPin &shutdown;
   HCI::Packet *rx;
-  uart_state rx_state;
+  void (*rx_state)(BBand *);
   HCI::Packet *tx;
   HCI::Packet packet_pool[PACKET_POOL_SIZE];
   HCI::Packet *free_packets;
   HCI::Packet *incoming_packets;
-  packet_state packet_handler;
+
+  void (*packet_handler)(BBand *, HCI::Packet *);
+  void (*event_handler)(BBand *, uint8_t event, HCI::Packet *);
+  void (*command_complete_handler)(BBand *, uint16_t opcode, HCI::Packet *);
+
   uint8_t command_packet_budget;
   HCI::BD_ADDR bd_addr;
 
@@ -152,6 +154,10 @@ class BBand {
   void rx_expect_event_parameters();
 
   // initialization states
+  void initialization_command_complete(uint16_t opcode, HCI::Packet *p);
+  void patch_command_complete(uint16_t opcode, HCI::Packet *p);
+
+  void standard_packet_handler(HCI::Packet *p);
   void reset_pending(HCI::Packet *p);
   void read_version_info(HCI::Packet *p);
   void baud_rate_negotiated(HCI::Packet *p);
@@ -185,8 +191,23 @@ class BBand {
 #define END_LE_EVENTS
 
 namespace HCI {
-#include "command_defs.h"
+  #include "command_defs.h"
 };
+
+#undef  COMMAND
+#define COMMAND(ogf,ocf,name,send,expect) OPCODE_##name = OPCODE(ogf,ocf),
+#undef  BEGIN_EVENTS
+#define BEGIN_EVENTS
+#undef  EVENT
+#define EVENT(code,name,args)
+#undef  END_EVENTS
+#define END_EVENTS
+
+namespace HCI {
+  enum opcodes {
+    #include "command_defs.h"
+  };
+}
 
 #undef BEGIN_COMMANDS
 #undef COMMAND
@@ -197,3 +218,5 @@ namespace HCI {
 #undef BEGIN_LE_EVENTS
 #undef LE_EVENT
 #undef END_LE_EVENTS
+
+

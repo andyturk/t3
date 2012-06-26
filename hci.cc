@@ -14,7 +14,7 @@
 #define END_LE_EVENTS
 
 namespace HCI {
-#include "command_defs.h"
+  #include "command_defs.h"
 };
 
 #undef BEGIN_COMMANDS
@@ -365,6 +365,7 @@ void BBand::initialize() {
 
   uart.set_interrupt_sources(UART::RX | UART::ERROR);
   packet_handler = &reset_pending;
+  command_complete_handler = &initialization_command_complete;
 
   shutdown.set_value(1); // clear SHUTDOWN
   uart.set_interrupt_enable(true);
@@ -450,7 +451,7 @@ void BBand::process_incoming_packets() {
     }
     uart.set_interrupt_enable(true);
 
-    if (p) (*packet_handler)(this, p);
+    if (p) standard_packet_handler(p);
   } while (p);
 }
 
@@ -459,6 +460,102 @@ void BBand::send(Packet *p) {
   p->next = 0;
   tx = p;
   fill_uart();
+}
+
+void BBand::standard_packet_handler(Packet *p) {
+  switch (p->get()) {
+  case EVENT_PACKET : {
+    uint8_t event = p->get();
+    uint8_t ignored_param_length __attribute__ ((unused)) = p->get();
+
+    if (event == EVENT_COMMAND_COMPLETE) {
+      uint16_t opcode;
+
+      p->fget("12", &command_packet_budget, &opcode);
+      command_complete_handler(this, opcode, p);
+    } else {
+      event_handler(this, event, p);
+    }
+    break;
+  }
+    
+  case COMMAND_PACKET :
+  case ACL_PACKET :
+  case SYNCHRONOUS_DATA_PACKET :
+  default :
+    assert(false);
+  }
+}
+
+void BBand::initialization_command_complete(uint16_t opcode, Packet *p) {
+  uint8_t status = p->get();
+  assert(status == SUCCESS);
+
+  switch (opcode) {
+  case OPCODE_RESET :
+    p->reset();
+    p->fput(READ_LOCAL_VERSION_INFORMATION);
+    break;
+
+  case OPCODE_READ_LOCAL_VERSION_INFORMATION : {
+    uint8_t hci_version, lmp_version;
+    uint16_t hci_revision, manufacturer_name, lmp_subversion;
+    p->fget("12122", &hci_version, &hci_revision, &lmp_version, &manufacturer_name, &lmp_subversion);
+    assert(hci_version == SPECIFICATION_4_0);
+
+    p->reset();
+    p->fput(PAN13XX_CHANGE_BAUD_RATE, 921600L);
+    break;
+  }
+
+  case OPCODE_PAN13XX_CHANGE_BAUD_RATE :
+    uart.set_baud(921600L);
+    p->reset();
+    p->fput(READ_BD_ADDR);
+    break;
+
+  case OPCODE_READ_BD_ADDR :
+    p->fget("b", &bd_addr);
+    p->reset();
+
+    // initialize the patch state
+    extern const unsigned char PatchXETU[];
+    extern const int PatchXETULength;
+  
+    patch_state.expected_opcode = 0;
+    patch_state.offset = 0;
+    patch_state.length = PatchXETULength;
+    patch_state.data = (uint8_t *) PatchXETU;
+
+    command_complete_handler = &patch_command_complete;
+    patch_command_complete(0, p);
+    p = 0;
+  }
+
+  if (p) send(p);
+}
+
+void BBand::patch_command_complete(uint16_t opcode, Packet *p) {
+  assert(opcode == patch_state.expected_opcode);
+
+  if (patch_state.offset < patch_state.length) {
+    assert((patch_state.length - patch_state.offset) >= 4);
+
+    p->reset();
+    uint8_t *cmd = patch_state.data + patch_state.offset;
+    size_t command_length = 4 + cmd[3];
+    patch_state.expected_opcode = (cmd[2] << 8) + cmd[1];
+
+    for (size_t i=0; i < command_length; ++i) p->put(cmd[i]);
+    patch_state.offset += command_length;
+    UARTprintf("patch command %04x @ %d (%d)\n",
+               patch_state.expected_opcode, patch_state.offset - command_length, command_length);
+    p->flip();
+    send(p);
+  } else {
+    deallocate_packet(p);
+    UARTprintf("initialization complete\n");
+  }
 }
 
 void BBand::reset_pending(HCI::Packet *p) {
