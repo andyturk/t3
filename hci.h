@@ -99,11 +99,6 @@ namespace HCI {
     EVENT_PACKET            = 0x04
   };
 
-  struct Command {
-    const uint16_t opcode;
-    const char *send;
-  };
-
   struct BD_ADDR {
     uint8_t data[6];
   };
@@ -175,7 +170,7 @@ class BBand {
 };
 
 #define BEGIN_COMMANDS
-#define COMMAND(ogf,ocf,name,send,expect) extern HCI::Command name;
+#define COMMAND(ogf,ocf,name,send,expect)
 #define END_COMMANDS
 
 #define BEGIN_EVENTS enum {

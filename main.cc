@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include "buffer.h"
 #include "hal.h"
-#include "packets.h"
+#include "hci.h"
 
 #include "utils/uartstdio.h"
 

@@ -1,32 +1,6 @@
 #include "hci.h"
 #include "utils/uartstdio.h"
 
-#define BEGIN_COMMANDS
-#define COMMAND(ogf,ocf,name,send,expect) HCI::Command name = {OPCODE(ogf,ocf), send};
-#define END_COMMANDS
-
-#define BEGIN_EVENTS
-#define EVENT(code,name,args)
-#define END_EVENTS
-
-#define BEGIN_LE_EVENTS
-#define LE_EVENT(code,name,args)
-#define END_LE_EVENTS
-
-namespace HCI {
-  #include "command_defs.h"
-};
-
-#undef BEGIN_COMMANDS
-#undef COMMAND
-#undef END_COMMANDS
-#undef BEGIN_EVENTS
-#undef EVENT
-#undef END_EVENTS
-#undef BEGIN_LE_EVENTS
-#undef LE_EVENT
-#undef END_LE_EVENTS
-
 using namespace HCI;
 
 void Packet::command(uint16_t opcode, const char *format, ...) {
