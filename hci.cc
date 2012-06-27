@@ -457,7 +457,8 @@ void BBand::send(Packet *p) {
 }
 
 void BBand::standard_packet_handler(Packet *p) {
-  switch (p->get()) {
+  uint8_t packet_indicator = p->get();
+  switch (packet_indicator) {
   case EVENT_PACKET : {
     uint8_t event = p->get();
     uint8_t ignored_param_length __attribute__ ((unused)) = p->get();
@@ -477,7 +478,8 @@ void BBand::standard_packet_handler(Packet *p) {
   case ACL_PACKET :
   case SYNCHRONOUS_DATA_PACKET :
   default :
-    assert(false);
+    UARTprintf("discarding unknown packet of type %d\n", packet_indicator);
+    deallocate_packet(p);
   }
 }
 
@@ -526,6 +528,12 @@ void BBand::cold_boot(uint16_t opcode, Packet *p) {
 
     command_complete_handler = &upload_patch;
     upload_patch(0, p);
+    p = 0;
+    break;
+
+  default :
+    UARTprintf("discarding unrecognized event packet (%02x) in during cold boot\n", opcode);
+    deallocate_packet(p);
     p = 0;
   }
 
@@ -588,11 +596,41 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     UARTprintf("acl: %d @ %d, synchronous: %d @ %d\n",
                num_acl_packets, acl_data_length,
                num_synchronous_packets, synchronous_data_length);
-    
+
+    p->command(OPCODE_WRITE_PAGE_TIMEOUT, "2", 0x2000);
+    break;
+  }
+
+  case OPCODE_WRITE_PAGE_TIMEOUT :
+    p->command(OPCODE_READ_PAGE_TIMEOUT);
+    break;
+
+  case OPCODE_READ_PAGE_TIMEOUT : {
+    uint16_t timeout;
+
+    p->fget("2", &timeout);
+    uint32_t usec = timeout*625;
+    UARTprintf("page timeout = %d.%d msec\n", usec/1000, usec%1000);
+
+    p->command(OPCODE_WRITE_LOCAL_NAME_COMMAND, "n", "Super Whizzy Gizmo 1.0");
+    break;
+  }
+
+  case OPCODE_WRITE_LOCAL_NAME_COMMAND :
+    p->command(OPCODE_WRITE_SCAN_ENABLE, "1", 0x03);
+    break;
+
+  case OPCODE_WRITE_SCAN_ENABLE :
+    UARTprintf("warm boot finished\n");
+
     deallocate_packet(p);
     p = 0;
     break;
-  }
+
+  default :
+    UARTprintf("discarding unrecognized event packet (%02x) in during cold boot\n", opcode);
+    deallocate_packet(p);
+    p = 0;
   }
 
   if (p) send(p);
