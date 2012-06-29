@@ -79,6 +79,7 @@ namespace HCI {
     IF = 0x04, // Informational
     ST = 0x05, // Status
     TS = 0x06, // Testing
+    LE = 0x08, // Low Energy
     VS = 0x3f  // Vendor Specific
   };
 
@@ -170,36 +171,21 @@ class BBand {
   void process_incoming_packets();
 };
 
-#define BEGIN_COMMANDS
-#define COMMAND(ogf,ocf,name,send,expect)
-#define END_COMMANDS
+#define BEGIN_COMMANDS enum opcodes {
+#define COMMAND(ogf,ocf,name,send,expect) OPCODE_##name = OPCODE(ogf,ocf),
+#define END_COMMANDS };
 
-#define BEGIN_EVENTS enum {
+#define BEGIN_EVENTS enum events {
 #define EVENT(code,name,args) EVENT_##name = code,
 #define END_EVENTS };
 
-#define BEGIN_LE_EVENTS
-#define LE_EVENT(code,name,args)
-#define END_LE_EVENTS
+#define BEGIN_LE_EVENTS enum le_opcodes {
+#define LE_EVENT(code,name,args) LE_EVENT_##name = code,
+#define END_LE_EVENTS };
 
 namespace HCI {
   #include "command_defs.h"
 };
-
-#undef  COMMAND
-#define COMMAND(ogf,ocf,name,send,expect) OPCODE_##name = OPCODE(ogf,ocf),
-#undef  BEGIN_EVENTS
-#define BEGIN_EVENTS
-#undef  EVENT
-#define EVENT(code,name,args)
-#undef  END_EVENTS
-#define END_EVENTS
-
-namespace HCI {
-  enum opcodes {
-    #include "command_defs.h"
-  };
-}
 
 #undef BEGIN_COMMANDS
 #undef COMMAND
