@@ -453,6 +453,7 @@ void BBand::send(Packet *p) {
   assert(tx == 0);
   p->next = 0;
   tx = p;
+  UARTprintf("sending packet 0x%x of %d bytes\n", p, p->get_limit());
   fill_uart();
 }
 
@@ -567,7 +568,14 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
 void BBand::warm_boot(uint16_t opcode, Packet *p) {
   if (opcode != 0) {
     uint8_t status = p->get();
-    assert(status == SUCCESS);
+
+    if (status != SUCCESS) {
+      uint16_t ocf = opcode & 0x03ff;
+      uint16_t ogf = opcode >> 10;
+
+      UARTprintf("bad command status (0x%x): ogf: %d ocf: 0x%04x\n", status, ogf, ocf);
+      for (;;);
+    }
   }
 
   switch (opcode) {
@@ -617,10 +625,95 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   }
 
   case OPCODE_WRITE_LOCAL_NAME_COMMAND :
+    UARTprintf("local name set\n");
     p->command(OPCODE_WRITE_SCAN_ENABLE, "1", 0x03);
     break;
 
   case OPCODE_WRITE_SCAN_ENABLE :
+    UARTprintf("local scans enabled\n");
+    // http://bluetooth-pentest.narod.ru/software/bluetooth_class_of_device-service_generator.html
+    p->command(OPCODE_WRITE_CLASS_OF_DEVICE, "4", 0x0098051c);
+    break;
+
+  case OPCODE_WRITE_CLASS_OF_DEVICE :
+    UARTprintf("device class set\n");
+    p->command(OPCODE_SET_EVENT_MASK, "44", 0xffffffff, 0x20001fff);
+    break;
+
+  case OPCODE_SET_EVENT_MASK :
+    UARTprintf("event mask set\n");
+    p->reset();
+    p->command(OPCODE_WRITE_LE_HOST_SUPPORT, "11", 1, 1);
+    break;
+
+  case OPCODE_WRITE_LE_HOST_SUPPORT :
+    UARTprintf("host support written\n");
+    p->command(OPCODE_LE_SET_EVENT_MASK, "44", 0xffffffff, 0xffffffff);
+    break;
+
+  case OPCODE_LE_SET_EVENT_MASK :
+    UARTprintf("event mask set\n");
+    p->command(OPCODE_LE_READ_BUFFER_SIZE);
+    break;
+
+  case OPCODE_LE_READ_BUFFER_SIZE : {
+    UARTprintf("buffer size read\n");
+    uint16_t le_data_packet_length;
+    uint8_t num_le_packets;
+
+    p->fget("21", &le_data_packet_length, &num_le_packets);
+    UARTprintf("le_data_packet_length = %d, num_packets = %d\n", le_data_packet_length, num_le_packets);
+
+    p->command(OPCODE_LE_READ_SUPPORTED_STATES);
+    break;
+  }
+
+  case OPCODE_LE_READ_SUPPORTED_STATES : {
+    UARTprintf("supported states read\n");
+
+    uint8_t states[8];
+    p->fget("8", states);
+    UARTprintf("states = 0x");
+    for (int i=0; i < 8; ++i) UARTprintf("%02x");
+    UARTprintf("\n");
+
+    p->command(OPCODE_LE_SET_ADVERTISING_PARAMETERS, "22111b11",
+               0x4000, 0x0800, 0, 0, 0, &bd_addr, 0x07, 0);
+    break;
+  }
+    
+  case OPCODE_LE_SET_ADVERTISING_PARAMETERS : {
+    UARTprintf("advertising parameters set\n");
+    // https://www.bluetooth.org/Technical/AssignedNumbers/generic_access_profile.htm
+    // AD #1, data type (0x01) <<Flags>>
+    // AD #2, data type (0x02) <<Incomplete list of 16-bit service UUIDs>>
+
+    uint8_t advertising_data[] = {02, 01, 05, 03, 02, 0xf0, 0xff};
+    p->command(OPCODE_LE_SET_ADVERTISING_DATA);
+    p->unflip();
+    p->put(sizeof(advertising_data));
+    for (unsigned int i=0; i < sizeof(advertising_data); ++i) p->put(advertising_data[i]);
+    p->flip();
+    break;
+  }
+    
+  case OPCODE_LE_SET_ADVERTISING_DATA : {
+    UARTprintf("advertising data set\n");
+    uint8_t advertising_data[] = {02, 01, 05, 03, 02, 0xf0, 0xff};
+    p->command(OPCODE_LE_SET_SCAN_RESPONSE_DATA);
+    p->unflip();
+    p->put(sizeof(advertising_data));
+    for (unsigned int i=0; i < sizeof(advertising_data); ++i) p->put(advertising_data[i]);
+    p->flip();
+    break;
+  }
+    
+  case OPCODE_LE_SET_SCAN_RESPONSE_DATA :
+    UARTprintf("response data set\n");
+    p->command(OPCODE_LE_SET_ADVERTISE_ENABLE, "1", 0x01);
+    break;
+
+  case OPCODE_LE_SET_ADVERTISE_ENABLE :
     UARTprintf("warm boot finished\n");
 
     deallocate_packet(p);
