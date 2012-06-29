@@ -25,6 +25,7 @@ class FlipBuffer {
   void set_limit(size_t l) {limit = l;}
   void reset() {position = 0; limit = capacity; mark = NO_MARK;}
   void flip() {limit = position; position = 0;}
+  void unflip() {position = limit; limit = capacity;}
   void rewind() {position = 0;}
   void set_mark() {mark = position;}
   void back_to_mark() {position = mark;}
