@@ -519,13 +519,13 @@ void BBand::cold_boot(uint16_t opcode, Packet *p) {
     uart.set_baud(921600L);
 
     // initialize the patch state
-    extern const unsigned char PatchXETU[];
-    extern const int PatchXETULength;
+    extern const uint8_t cc256x_init_script[];
+    extern const uint32_t cc256x_init_script_size;
   
     patch_state.expected_opcode = 0;
     patch_state.offset = 0;
-    patch_state.length = PatchXETULength;
-    patch_state.data = (uint8_t *) PatchXETU;
+    patch_state.length = cc256x_init_script_size;
+    patch_state.data = cc256x_init_script;
 
     command_complete_handler = &upload_patch;
     upload_patch(0, p);
@@ -548,7 +548,7 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
     assert((patch_state.length - patch_state.offset) >= 4);
 
     p->reset();
-    uint8_t *cmd = patch_state.data + patch_state.offset;
+    const uint8_t *cmd = patch_state.data + patch_state.offset;
     size_t command_length = 4 + cmd[3];
     patch_state.expected_opcode = (cmd[2] << 8) + cmd[1];
 

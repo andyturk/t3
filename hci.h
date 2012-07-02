@@ -161,7 +161,7 @@ class BBand {
     uint16_t expected_opcode;
     size_t offset;
     size_t length;
-    uint8_t *data;
+    const uint8_t *data;
   } patch_state;
 
  public:
