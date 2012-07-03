@@ -3,6 +3,21 @@
 
 using namespace HCI;
 
+// 1 - integer (1)
+// 2 - integer (2)
+// 3 - integer (3)
+// 4 - integer (4)
+// 8 - integer (8)
+// b - BD_ADDR (6)
+// X - data (16)
+// * - unknown number of bytes
+// [ - begin array (0)
+// ] - end array (0)
+// n - null padded UTF-8 string (248)
+// c - channel classification (10)
+// i - extended inquiry (240)
+// S - supported commands (64)
+
 void Packet::command(uint16_t opcode, const char *format, ...) {
   reset();
   put(HCI::COMMAND_PACKET);
@@ -129,6 +144,14 @@ void Packet::vfput(const char *format, va_list args) {
       break;
     }
 
+    case '*' : {
+      uint8_t *p = va_arg(args, uint8_t *);
+      uint32_t len = va_arg(args, uint32_t);
+
+      for (unsigned int i=0; i < len; ++i) put(*p++);
+      break;
+    }
+
     case ' ' : // skip spaces
       break;
 
@@ -200,6 +223,11 @@ void HCI::Packet::fget(const char *format, ...) {
       p[1] = get();
       p[2] = get();
       p[3] = get();
+      break;
+
+    case '8' :
+      p = va_arg(args, uint8_t *);
+      for (int i=0; i < 8; ++i) *p++ = get();
       break;
 
     case 'b' :
@@ -453,7 +481,6 @@ void BBand::send(Packet *p) {
   assert(tx == 0);
   p->next = 0;
   tx = p;
-  UARTprintf("sending packet 0x%x of %d bytes\n", p, p->get_limit());
   fill_uart();
 }
 
@@ -542,6 +569,7 @@ void BBand::cold_boot(uint16_t opcode, Packet *p) {
 }
 
 void BBand::upload_patch(uint16_t opcode, Packet *p) {
+  assert(!uart.can_read());
   assert(opcode == patch_state.expected_opcode);
 
   if (patch_state.offset < patch_state.length) {
@@ -565,7 +593,27 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
   }
 }
 
+const uint8_t warm_boot_patch[] = {
+  0x01, I2(OPCODE_READ_BD_ADDR), 0,
+  0x01, I2(OPCODE_READ_BUFFER_SIZE_COMMAND), 0,
+  0x01, I2(OPCODE_WRITE_PAGE_TIMEOUT), 0, I2(0x2000),
+  0x01, I2(OPCODE_READ_PAGE_TIMEOUT), 0,
+  // WRITE_LOCAL_NAME_COMMAND
+  0x01, I2(OPCODE_WRITE_SCAN_ENABLE), 1, 0x03,
+  0x01, I2(OPCODE_WRITE_CLASS_OF_DEVICE), 4, I4(0x0098051c),
+  0x01, I2(OPCODE_SET_EVENT_MASK), 8, I4(0xffffffff), I4(0x20001fff),
+  0x01, I2(OPCODE_WRITE_LE_HOST_SUPPORT), 2, 1, 1,
+  0x01, I2(OPCODE_LE_SET_EVENT_MASK), 8, I4(0xffffffff), I4(0xffffffff),
+  0x01, I2(OPCODE_LE_READ_BUFFER_SIZE), 0,
+  0x01, I2(OPCODE_LE_READ_SUPPORTED_STATES), 0,
+  // LE_SET_ADVERTISING_PARAMETERS
+  0x01, I2(OPCODE_LE_SET_ADVERTISING_DATA), 8, 7, 0x02, 0x01, 0x05, 0x03, 0x02, 0xf0, 0xff,
+  0x01, I2(OPCODE_LE_SET_SCAN_RESPONSE_DATA), 8, 7, 0x02, 0x01, 0x05, 0x03, 0x02, 0xf0, 0xff,
+  0x01, I2(OPCODE_LE_SET_ADVERTISE_ENABLE), 1, 0x01,
+};
+
 void BBand::warm_boot(uint16_t opcode, Packet *p) {
+  assert(!uart.can_read());
   if (opcode != 0) {
     uint8_t status = p->get();
 
@@ -579,8 +627,14 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   }
 
   switch (opcode) {
-  case 0 :
+  case 0 : {
     UARTprintf("warm boot...\n");
+    uint8_t deep_sleep_enable = 0x00;
+    p->command(OPCODE_SLEEP_MODE_CONFIGURATIONS, "111411", 0x01, deep_sleep_enable, 0, 0xffffffff, 100, 0);
+    break;
+  }
+
+  case OPCODE_SLEEP_MODE_CONFIGURATIONS :
     p->command(OPCODE_READ_BD_ADDR);
     break;
 
@@ -674,11 +728,11 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     uint8_t states[8];
     p->fget("8", states);
     UARTprintf("states = 0x");
-    for (int i=0; i < 8; ++i) UARTprintf("%02x");
+    for (int i=0; i < 8; ++i) UARTprintf("%02x", states[i]);
     UARTprintf("\n");
 
     p->command(OPCODE_LE_SET_ADVERTISING_PARAMETERS, "22111b11",
-               0x4000, 0x0800, 0, 0, 0, &bd_addr, 0x07, 0);
+               0x0800, 0x4000, 0, 0, 0, &bd_addr, 0x07, 0);
     break;
   }
     
@@ -688,23 +742,27 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     // AD #1, data type (0x01) <<Flags>>
     // AD #2, data type (0x02) <<Incomplete list of 16-bit service UUIDs>>
 
-    uint8_t advertising_data[] = {02, 01, 05, 03, 02, 0xf0, 0xff};
-    p->command(OPCODE_LE_SET_ADVERTISING_DATA);
-    p->unflip();
-    p->put(sizeof(advertising_data));
-    for (unsigned int i=0; i < sizeof(advertising_data); ++i) p->put(advertising_data[i]);
-    p->flip();
+    uint8_t advertising_data[] = {02, 01, 05, 03, 02, 0xf0, 0xff, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0};
+
+    p->command(OPCODE_LE_SET_ADVERTISING_DATA, "1**", sizeof(advertising_data),
+               advertising_data, sizeof(advertising_data),
+               advertising_data, 31 - sizeof(advertising_data));
     break;
   }
     
   case OPCODE_LE_SET_ADVERTISING_DATA : {
     UARTprintf("advertising data set\n");
-    uint8_t advertising_data[] = {02, 01, 05, 03, 02, 0xf0, 0xff};
-    p->command(OPCODE_LE_SET_SCAN_RESPONSE_DATA);
-    p->unflip();
-    p->put(sizeof(advertising_data));
-    for (unsigned int i=0; i < sizeof(advertising_data); ++i) p->put(advertising_data[i]);
-    p->flip();
+    uint8_t advertising_data[] = {02, 01, 05, 03, 02, 0xf0, 0xff, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0};
+
+    p->command(OPCODE_LE_SET_SCAN_RESPONSE_DATA, "1**", sizeof(advertising_data),
+               advertising_data, sizeof(advertising_data),
+               advertising_data, 31 - sizeof(advertising_data));
     break;
   }
     
