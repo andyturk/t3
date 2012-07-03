@@ -319,7 +319,8 @@ BBand::BBand(UART &u, IOPin &s) :
   rx(0), rx_state(0),
   tx(0), 
   free_packets(0),
-  incoming_packets(0)
+  incoming_packets(0),
+  event_handler(&default_event_handler)
 {
   // initialize free packet pool
   // all packets are free to start with
@@ -482,6 +483,10 @@ void BBand::send(Packet *p) {
   p->next = 0;
   tx = p;
   fill_uart();
+}
+
+void BBand::default_event_handler(uint8_t event, Packet *p) {
+  UARTprintf("discarding event 0x%02x\n", event);
 }
 
 void BBand::standard_packet_handler(Packet *p) {
@@ -702,7 +707,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
 
   case OPCODE_WRITE_LE_HOST_SUPPORT :
     UARTprintf("host support written\n");
-    p->command(OPCODE_LE_SET_EVENT_MASK, "44", 0xffffffff, 0xffffffff);
+    p->command(OPCODE_LE_SET_EVENT_MASK, "44", 0x0000, 0x0000001f);
     break;
 
   case OPCODE_LE_SET_EVENT_MASK :

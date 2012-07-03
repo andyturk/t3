@@ -63,6 +63,7 @@ class BBand {
   void warm_boot(uint16_t, HCI::Packet *p);
 
   void standard_packet_handler(HCI::Packet *p);
+  void default_event_handler(uint8_t event, HCI::Packet *p);
 
   struct {
     uint16_t expected_opcode;
