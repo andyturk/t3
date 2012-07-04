@@ -318,14 +318,10 @@ BBand::BBand(UART &u, IOPin &s) :
   shutdown(s),
   rx(0), rx_state(0),
   tx(0), 
-  free_packets(0),
+  indicator_packet(indicator_packet_storage, sizeof(indicator_packet_storage)),
   incoming_packets(0),
   event_handler(&default_event_handler)
 {
-  // initialize free packet pool
-  // all packets are free to start with
-  free_packets = &packet_pool[0];
-  for (int i=0; i < PACKET_POOL_SIZE-1; ++i) packet_pool[i].next = &packet_pool[i+1];
 }
 
 void BBand::drain_uart() {
@@ -345,8 +341,7 @@ void BBand::fill_uart() {
     uart.write(&byte, 1);
     if (tx->get_remaining() == 0) {
       uart.set_interrupt_enable(false);
-      tx->next = free_packets;
-      free_packets = tx;
+      command_packet_pool.deallocate(tx);
       tx = 0;
       uart.set_interrupt_enable(true);
     }
@@ -379,14 +374,11 @@ void BBand::initialize() {
   uart.set_baud(115200);
   uart.set_enable(true);
 
-  rx = allocate_packet();
-  rx->reset();
-  rx->set_limit(1);
-  rx_state = &rx_expect_packet_indicator;
+  rx_new_packet();
 
   uart.set_interrupt_sources(UART::RX | UART::ERROR);
 
-  tx = allocate_packet();
+  command_packet_pool.allocate(tx);
   command_complete_handler = &cold_boot;
   cold_boot(0, tx);
 
@@ -397,34 +389,57 @@ void BBand::initialize() {
   fill_uart();
 }
 
-void BBand::rx_expect_packet_indicator() {
-  switch (rx->peek(-1)) {
+void BBand::rx_new_packet() {
+  indicator_packet.reset();
+  indicator_packet.set_limit(1);
+  rx = &indicator_packet;
+  rx_state = &rx_packet_indicator;
+}
+
+void BBand::rx_packet_indicator() {
+  uint8_t ind = indicator_packet.peek(-1);
+
+  switch (ind) {
   case HCI::EVENT_PACKET :
+    command_packet_pool.allocate(rx);
     rx->set_limit(1+1+1); // indicator, event code, param length
-    rx_state = &rx_expect_event_code_and_length;
+    rx->put(ind);
+    rx_state = &rx_event_header;
+    break;
+
+  case HCI::ACL_PACKET :
+    acl_packet_pool.allocate(rx);
+    rx->set_limit(1+4);
+    rx->put(ind);
+    rx_state = &rx_acl_header;
     break;
 
   case HCI::COMMAND_PACKET :
-  case HCI::ACL_PACKET :
   case HCI::SYNCHRONOUS_DATA_PACKET :
   default :
     assert(false);
   }
 }
 
-void BBand::rx_expect_event_code_and_length() {
+void BBand::rx_acl_header() {
+  uint16_t length = (rx->peek(-1) << 8) + (rx->peek(-2));
+  rx->set_limit(1+4+length);
+  rx_state = &rx_queue_received_packet;
+}
+
+void BBand::rx_event_header() {
   uint8_t param_length = rx->peek(-1);
 
   if (param_length > 0) {
     rx->set_limit(1+1+1 + param_length);
-    rx_state = &rx_expect_event_parameters;
+    rx_state = &rx_queue_received_packet;
   } else {
     // there are no params, so just chain to the next state
-    rx_expect_event_parameters();
+    rx_queue_received_packet();
   }
 }
 
-void BBand::rx_expect_event_parameters() {
+void BBand::rx_queue_received_packet() {
   // assert that we're handling the uart interrupt so we won't
   // be interrupted
 
@@ -436,30 +451,22 @@ void BBand::rx_expect_event_parameters() {
 
   tail = rx;
   rx->next = 0;
-  
-  rx = allocate_packet();
-  rx->reset();
-  rx->set_limit(1);
-  rx_state = &rx_expect_packet_indicator;
-}
-
-HCI::Packet *BBand::allocate_packet() {
-  uart.set_interrupt_enable(false);
-  assert(free_packets != 0);
-
-  HCI::Packet *value = free_packets;
-  free_packets = value->next;
-  value->next = 0;
-
-  uart.set_interrupt_enable(true);
-  return value;
+  rx_new_packet();
 }
 
 void BBand::deallocate_packet(HCI::Packet *p) {
-  uart.set_interrupt_enable(false);
-  p->next = free_packets;
-  free_packets = p;
-  uart.set_interrupt_enable(true);
+  __asm ("cpsid i");
+
+  switch (p->get(0)) {
+  case COMMAND_PACKET :
+  case EVENT_PACKET :
+    command_packet_pool.deallocate(p);
+    break;
+  default :
+    assert(false);
+  }
+
+  __asm ("cpsie i");
 }
 
 void BBand::process_incoming_packets() {
@@ -507,14 +514,31 @@ void BBand::standard_packet_handler(Packet *p) {
     break;
   }
     
+  case ACL_PACKET : {
+    uint16_t raw_handle, length;
+    p->fget("22", &raw_handle, &length);
+
+    uint16_t handle = raw_handle >> 4;
+    uint8_t pb = (raw_handle >> 2) & 0x03, bc = raw_handle & 0x03;
+
+    acl_packet_handler(handle, pb, bc, p);
+    break;
+  }
+
   case COMMAND_PACKET :
-  case ACL_PACKET :
   case SYNCHRONOUS_DATA_PACKET :
   default :
     UARTprintf("discarding unknown packet of type %d\n", packet_indicator);
     deallocate_packet(p);
   }
 }
+
+void BBand::acl_packet_handler(uint16_t handle, uint8_t pb, uint8_t bc, Packet *p) {
+   UARTprintf("ACL data, handle = 0x%04x, pb = 0x%02x, bc = 0x%02x\n", handle, pb, bc);
+   UARTprintf("discarding the acl packet\n");
+   acl_packet_pool.deallocate(p);
+ }
+
 
 void BBand::cold_boot(uint16_t opcode, Packet *p) {
   if (opcode != 0) {

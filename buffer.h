@@ -6,21 +6,28 @@
 
 template<class T>
 class FlipBuffer {
-  T *const storage;
-  const size_t capacity;
-  size_t position, limit, mark;
+  T *storage;
+  size_t capacity, position, limit, mark;
 
  public:
   enum {
     NO_MARK = 0xffffffff
   };
 
+  FlipBuffer() : storage(0), capacity(0), position(0), limit(0), mark(NO_MARK) {}
   FlipBuffer(T *s, size_t c) : storage(s), capacity(c), position(0), limit(c), mark(NO_MARK) {}
   size_t get_capacity() const {return capacity;}
   size_t get_position() const {return position;}
   size_t get_limit() const {return limit;}
   size_t get_mark() const {return mark;}
   size_t get_remaining() const {return limit - position;}
+
+  void initialize(T *s, size_t c) {
+    storage = s;
+    limit = capacity = c;
+    position = 0;
+    mark = NO_MARK;
+  }
 
   void set_limit(size_t l) {limit = l;}
   void reset() {position = 0; limit = capacity; mark = NO_MARK;}
@@ -31,6 +38,7 @@ class FlipBuffer {
   void back_to_mark() {position = mark;}
   
   T get() {return storage[position++];}
+  T get(size_t pos) {return storage[pos];}
   T peek(int offset) {return storage[position + offset];}
   void put(const T x) {assert(position < limit); storage[position++] = x;}
 };
