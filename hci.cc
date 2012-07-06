@@ -319,7 +319,6 @@ BBand::BBand(UART &u, IOPin &s) :
   rx(0), rx_state(0),
   tx(0), 
   indicator_packet(indicator_packet_storage, sizeof(indicator_packet_storage)),
-  incoming_packets(0),
   event_handler(&default_event_handler)
 {
 }
@@ -444,13 +443,7 @@ void BBand::rx_queue_received_packet() {
   // be interrupted
 
   rx->flip();
-
-  HCI::Packet *&tail = incoming_packets;
-  while (tail != 0) tail = tail->next;
-  assert(tail == 0);
-
-  tail = rx;
-  rx->next = 0;
+  rx->join(&incoming_packets);
   rx_new_packet();
 }
 
@@ -470,14 +463,16 @@ void BBand::deallocate_packet(HCI::Packet *p) {
 }
 
 void BBand::process_incoming_packets() {
-  HCI::Packet *p = 0;
+  HCI::Packet *p;
 
   do {
     uart.set_interrupt_enable(false);
-    p = incoming_packets;
-    if (p) {
-      incoming_packets = p->next;
-      p->next = 0;
+
+    if (!incoming_packets.empty()) {
+      p = (Packet *) incoming_packets.left;
+      p->join(p);
+    } else {
+      p = 0;
     }
     uart.set_interrupt_enable(true);
 
@@ -487,7 +482,6 @@ void BBand::process_incoming_packets() {
 
 void BBand::send(Packet *p) {
   assert(tx == 0);
-  p->next = 0;
   tx = p;
   fill_uart();
 }

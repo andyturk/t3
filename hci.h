@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdarg.h>
+#include <deque>
 
 #include "hal.h"
 #include "buffer.h"
@@ -11,13 +12,37 @@ namespace HCI {
     uint8_t data[6];
   };
 
-  class Packet : public FlipBuffer<uint8_t> {
+  template<typename T>
+  struct Ring {
+    Ring *left;
+    Ring *right;
+
+    Ring() {left = right = this;}
+    bool empty() const {return left == this && right == this;}
+
+    void join(Ring *other) { // join right
+      // remove this from its current ring
+      left->right = this->right;
+      right->left = this->left;
+
+      // form a singleton ring so that x->join(x) works
+      left = right = this;
+
+      // set up local pointers
+      this->right = other->right;
+      this->left = other;
+
+      // splice this into the other ring
+      other->right->left = this;
+      other->right = this;
+    }
+  };
+
+  class Packet : public Ring<Packet>, public FlipBuffer<uint8_t> {
     void vfput(const char *format, va_list args);
 
   public:
-    Packet *next;
-
-    Packet(uint8_t *buf, size_t len) : FlipBuffer<uint8_t>(buf, len), next(0) {}
+    Packet(uint8_t *buf, size_t len) : FlipBuffer<uint8_t>(buf, len) {}
     void command(uint16_t opcode, const char *format = 0, ...);
     void fget(const char *format, ...);
   };
@@ -38,30 +63,28 @@ namespace HCI {
   template<class T, unsigned int size>
   class Pool {
     T pool[size];
-    HCI::Packet *free_list;
+    Ring<Packet> available;
 
   public:
     Pool() {
-      for (unsigned int i=0; i < size-1; ++i) pool[i].next = &pool[i+1];
-      free_list = pool;
+      for (unsigned int i=0; i < size; ++i) pool[i].join(&available);
     }
 
     void allocate(HCI::Packet *&p) {
+      assert(!available.empty());
+
       __asm("cpsid i");
-      if ((p = free_list)) {
-        free_list = free_list->next;
-        p->next = 0;
-      }
-      __asm("cpsie i");
+      p = (Packet *) available.right;
+      p->join(p);
       p->reset();
+      __asm("cpsie i");
     }
 
     void deallocate(HCI::Packet *p) {
       assert(p != 0);
 
       __asm("cpsid i");
-      p->next = free_list;
-      free_list = p;
+      p->join(&available);
       __asm("cpsie i");
     }
   };
@@ -81,7 +104,7 @@ class BBand {
   Packet indicator_packet;
   Pool<CommandPacket, 4> command_packet_pool;
   Pool<ACLPacket, 4> acl_packet_pool;
-  Packet *incoming_packets;
+  Ring<Packet> incoming_packets;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
