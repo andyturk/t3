@@ -340,7 +340,7 @@ void BBand::fill_uart() {
     uart.write(&byte, 1);
     if (tx->get_remaining() == 0) {
       uart.set_interrupt_enable(false);
-      command_packet_pool.deallocate(tx);
+      command_packet_pool.deallocate((CommandPacket *) tx);
       tx = 0;
       uart.set_interrupt_enable(true);
     }
@@ -377,7 +377,9 @@ void BBand::initialize() {
 
   uart.set_interrupt_sources(UART::RX | UART::ERROR);
 
-  command_packet_pool.allocate(tx);
+  tx = command_packet_pool.allocate();
+  assert(tx != 0);
+
   command_complete_handler = &cold_boot;
   cold_boot(0, tx);
 
@@ -400,14 +402,18 @@ void BBand::rx_packet_indicator() {
 
   switch (ind) {
   case HCI::EVENT_PACKET :
-    command_packet_pool.allocate(rx);
+    rx = command_packet_pool.allocate();
+    assert(rx != 0);
+
     rx->set_limit(1+1+1); // indicator, event code, param length
     rx->put(ind);
     rx_state = &rx_event_header;
     break;
 
   case HCI::ACL_PACKET :
-    acl_packet_pool.allocate(rx);
+    rx = acl_packet_pool.allocate();
+    assert(rx != 0);
+
     rx->set_limit(1+4);
     rx->put(ind);
     rx_state = &rx_acl_header;
@@ -453,7 +459,7 @@ void BBand::deallocate_packet(HCI::Packet *p) {
   switch (p->get(0)) {
   case COMMAND_PACKET :
   case EVENT_PACKET :
-    command_packet_pool.deallocate(p);
+    command_packet_pool.deallocate((HCI::CommandPacket *)p);
     break;
   default :
     assert(false);
@@ -513,9 +519,9 @@ void BBand::standard_packet_handler(Packet *p) {
     p->fget("22", &raw_handle, &length);
 
     uint16_t handle = raw_handle >> 4;
-    uint8_t pb = (raw_handle >> 2) & 0x03, bc = raw_handle & 0x03;
+    uint8_t flags = raw_handle & 0x000f;
 
-    acl_packet_handler(handle, pb, bc, p);
+    acl_packet_handler(handle, flags, p);
     break;
   }
 
@@ -527,10 +533,9 @@ void BBand::standard_packet_handler(Packet *p) {
   }
 }
 
-void BBand::acl_packet_handler(uint16_t handle, uint8_t pb, uint8_t bc, Packet *p) {
-   UARTprintf("ACL data, handle = 0x%04x, pb = 0x%02x, bc = 0x%02x\n", handle, pb, bc);
-   UARTprintf("discarding the acl packet\n");
-   acl_packet_pool.deallocate(p);
+void BBand::acl_packet_handler(uint16_t handle, uint8_t flags, Packet *p) {
+   UARTprintf("ACL data, handle = 0x%04x, flags = 0x%02x\n", handle, flags);
+   acl_packet_pool.deallocate((HCI::ACLPacket *) p);
  }
 
 

@@ -63,30 +63,39 @@ namespace HCI {
   template<class T, unsigned int size>
   class Pool {
     T pool[size];
-    Ring<Packet> available;
+    Ring<T> available;
 
   public:
     Pool() {
-      for (unsigned int i=0; i < size; ++i) pool[i].join(&available);
+      for (unsigned int i=0; i < size; ++i) {
+        Ring<T> *p = (Ring<T> *) (pool + i);
+        p->join(&available);
+      }
     }
 
-    void allocate(HCI::Packet *&p) {
-      assert(!available.empty());
+    T *allocate() {
+      if (available.empty()) return 0;
 
       __asm("cpsid i");
-      p = (Packet *) available.right;
+      T *p = (T *) available.right;
       p->join(p);
       p->reset();
       __asm("cpsie i");
+
+      return p;
     }
 
-    void deallocate(HCI::Packet *p) {
+    void deallocate(T *p) {
       assert(p != 0);
 
       __asm("cpsid i");
-      p->join(&available);
+      ((Ring<T> *) p)->join(&available);
       __asm("cpsie i");
     }
+  };
+
+  class Connection : public Ring<Connection> {
+    uint16_t handle;
   };
 };
 
@@ -104,7 +113,9 @@ class BBand {
   Packet indicator_packet;
   Pool<CommandPacket, 4> command_packet_pool;
   Pool<ACLPacket, 4> acl_packet_pool;
+  Pool<HCI::Connection, 3> hci_connection_pool;
   Ring<Packet> incoming_packets;
+  Ring<HCI::Connection> remotes;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
@@ -132,7 +143,7 @@ class BBand {
 
   void standard_packet_handler(Packet *p);
   void default_event_handler(uint8_t event, Packet *p);
-  void acl_packet_handler(uint16_t handle, uint8_t pb, uint8_t bc, Packet *p);
+  void acl_packet_handler(uint16_t handle, uint8_t flags, Packet *p);
 
   struct {
     uint16_t expected_opcode;
