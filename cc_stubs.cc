@@ -1,11 +1,36 @@
 #include <stdint.h>
 #include <cstddef>
+#include "assert.h"
 
-void __attribute__ ((noreturn)) *operator new(size_t size) {
-  for(;;);
+extern "C" uint8_t __heap_start__;
+extern "C" uint8_t __heap_end__;
+
+enum {HEAP_ALIGNMENT = 4};
+static uint8_t *unused_heap = &__heap_start__;
+
+void *allocate_heap_space(size_t size) {
+  if (size & (HEAP_ALIGNMENT-1)) {
+    size += HEAP_ALIGNMENT - (size & (HEAP_ALIGNMENT-1));
+  }
+
+  assert((unused_heap + size) < &__heap_end__);
+  __asm ("cpsie i");
+  void *value = (void *) unused_heap;
+  unused_heap += size;
+  __asm ("cpsid i");
+  return value;
+}
+
+void *operator new(size_t size) {
+  return allocate_heap_space(size);
+}
+
+void *operator new[](size_t size) {
+  return allocate_heap_space(size);
 }
 
 void operator delete(void *p) {
+  assert(false);
 }
 
 extern "C" {
