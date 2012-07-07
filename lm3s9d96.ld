@@ -35,10 +35,10 @@ MEMORY {                                           /* memory map of LM3S9D96 */
 }
 
 /* The size of the stack used by the application. NOTE: you need to adjust  */
-STACK_SIZE = 6000;
+STACK_SIZE = 8192;
 
 /* The size of the heap used by the application. NOTE: you need to adjust   */
-HEAP_SIZE = 1000;
+HEAP_SIZE = 16384;
 
 SECTIONS {
 
