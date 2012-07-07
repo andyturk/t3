@@ -18,6 +18,11 @@ using namespace HCI;
 // i - extended inquiry (240)
 // S - supported commands (64)
 
+const char hex_digits[16] = {
+  '0', '1', '2', '3', '4', '5', '6', '7',
+  '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+};
+
 void Packet::command(uint16_t opcode, const char *format, ...) {
   reset();
   put(HCI::COMMAND_PACKET);
@@ -313,6 +318,14 @@ void HCI::Packet::fget(const char *format, ...) {
   va_end(args);
 }
 
+void Packet::dump() {
+  for (unsigned int i=position; i < limit; ++i) {
+    char c1 = hex_digits[storage[i]] >> 4;
+    char c2 = hex_digits[storage[i]] &0x0f;
+    UARTprintf("%c%c ", c1, c2);
+  }
+}
+
 BBand::BBand(UART &u, IOPin &s) :
   uart(u),
   shutdown(s),
@@ -448,6 +461,10 @@ void BBand::rx_queue_received_packet() {
   // assert that we're handling the uart interrupt so we won't
   // be interrupted
 
+  if (uart.can_read()) {
+    UARTprintf("warning: UART fifo not empty after received packet\n");
+  }
+
   rx->flip();
   rx->join(&incoming_packets);
   rx_new_packet();
@@ -493,7 +510,99 @@ void BBand::send(Packet *p) {
 }
 
 void BBand::default_event_handler(uint8_t event, Packet *p) {
-  UARTprintf("discarding event 0x%02x\n", event);
+  switch (event) {
+  case EVENT_DISCONNECTION_COMPLETE : {
+    uint16_t handle;
+    uint8_t reason;
+
+    p->fget("21", &handle, &reason);
+    handle &= 0x0ffff;
+
+    UARTprintf("disconnected 0x%04x because 0x%02x\n", handle, reason);
+    break;
+  }
+    
+  case EVENT_LE_META_EVENT : {
+    uint8_t subevent;
+    p->fget("1", &subevent);
+    le_event_handler(subevent, p);
+    break;
+  }
+
+  default :
+    UARTprintf("discarding event 0x%02x\n", event);
+  }
+
+  deallocate_packet(p);
+}
+
+void BBand::le_event_handler(uint8_t subevent, Packet *p) {
+  switch(subevent) {
+  case LE_EVENT_CONNECTION_COMPLETE : {
+    HCI::BD_ADDR peer_address;
+    uint8_t status, role, peer_address_type, master_clock_accuracy;
+    uint16_t connection_handle, conn_interval, conn_latency, supervision_timeout;
+
+    p->fget("1211b2221",
+            &status,
+            &connection_handle,
+            &role,
+            &peer_address_type,
+            &peer_address,
+            &conn_interval,
+            &conn_latency,
+            &supervision_timeout,
+            &master_clock_accuracy);
+
+    char buf[HCI::BD_ADDR::PP_BUF_LEN];
+    const char *type;
+
+    switch (peer_address_type) {
+    case 0 :
+      type = "public";
+      break;
+
+    case 1 :
+      type = "random";
+      break;
+
+    default :
+      type = "unknown";
+      break;
+    }
+
+    const char *role_name;
+    
+    switch (role) {
+    case 0 :
+      role_name = "master";
+      break;
+
+    case 1 :
+      role_name = "slave";
+      break;
+
+    default :
+      role_name = "unknown";
+      break;
+    }
+
+    peer_address.pretty_print(buf);
+
+    UARTprintf("connection to %s completed with status %d\n", buf, status);
+    UARTprintf("  handle = 0x%04x, addr_type = %s\n", connection_handle, type);
+    UARTprintf("  role = %s, interval = %d, latency = %d, timeout = %d\n", role_name, conn_interval, conn_latency, supervision_timeout);
+    UARTprintf("  clock_accuracy = %d\n", master_clock_accuracy);
+    break;
+  }
+  case LE_EVENT_ADVERTISING_REPORT :
+  case LE_EVENT_CONNECTION_UPDATE_COMPLETE :
+  case LE_EVENT_READ_REMOTE_USED_FEATURES_COMPLETE :
+  case LE_EVENT_LONG_TERM_KEY_REQUEST :
+  default :
+    UARTprintf("ignoring unrecognized LE event: 0x%02x\n", subevent);
+    break;
+  }
 }
 
 void BBand::standard_packet_handler(Packet *p) {
@@ -534,10 +643,51 @@ void BBand::standard_packet_handler(Packet *p) {
 }
 
 void BBand::acl_packet_handler(uint16_t handle, uint8_t flags, Packet *p) {
-   UARTprintf("ACL data, handle = 0x%04x, flags = 0x%02x\n", handle, flags);
-   acl_packet_pool.deallocate((HCI::ACLPacket *) p);
- }
+  uint8_t pb = flags >> 2, bc = flags & 0x03;
+  UARTprintf("ACL data, handle = 0x%04x, pb = %d, bc = %d\n", handle, pb, bc);
 
+  l2cap_packet_handler(p);
+  acl_packet_pool.deallocate((HCI::ACLPacket *) p);
+}
+
+void BBand::l2cap_packet_handler(Packet *p) {
+  uint16_t cid, length;
+  p->fget("22", &length, &cid);
+
+  switch(cid) {
+  case L2CAP::ATTRIBUTE_CID :
+    att_packet_handler(p);
+    break;
+
+  default :
+    UARTprintf("unrecognized L2CAP CID: 0x%04x\n", cid);
+    break;
+  }
+}
+
+void BBand::att_packet_handler(Packet *p) {
+  uint8_t opcode;
+
+  p->fget("1", &opcode);
+  switch (opcode) {
+  case ATT::OPCODE_ERROR : {
+    uint16_t handle;
+    uint8_t error;
+
+    p->fget("21", &opcode, &handle, &error);
+    UARTprintf("ATT error for opcode: 0x%02x, handle: 0x%04x, error: 0x%02x\n", opcode, handle, error);
+    break;
+  }
+
+  case ATT::OPCODE_FIND_TYPE_BY_VALUE_REQUEST : {
+    break;
+  }
+
+  default :
+    UARTprintf("unrecognized att opcode: 0x%02x\n", opcode);
+    break;
+  }
+}
 
 void BBand::cold_boot(uint16_t opcode, Packet *p) {
   if (opcode != 0) {
@@ -610,8 +760,8 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
 
     for (size_t i=0; i < command_length; ++i) p->put(cmd[i]);
     patch_state.offset += command_length;
-    UARTprintf("patch command %04x @ %d (%d)\n",
-               patch_state.expected_opcode, patch_state.offset - command_length, command_length);
+    //UARTprintf("patch command %04x @ %d (%d)\n",
+    //           patch_state.expected_opcode, patch_state.offset - command_length, command_length);
     p->flip();
     send(p);
   } else {
@@ -730,7 +880,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
 
   case OPCODE_WRITE_LE_HOST_SUPPORT :
     UARTprintf("host support written\n");
-    p->command(OPCODE_LE_SET_EVENT_MASK, "44", 0x0000, 0x0000001f);
+    p->command(OPCODE_LE_SET_EVENT_MASK, "44", 0x0000001f, 0x00000000);
     break;
 
   case OPCODE_LE_SET_EVENT_MASK :
