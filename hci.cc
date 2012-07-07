@@ -1,4 +1,5 @@
 #include "hci.h"
+#include "att.h"
 #include "utils/uartstdio.h"
 
 using namespace HCI;
