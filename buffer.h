@@ -6,6 +6,7 @@
 
 template<class T>
 class FlipBuffer {
+ protected:
   T *storage;
   size_t capacity, position, limit, mark;
 
