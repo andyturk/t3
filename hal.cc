@@ -159,6 +159,9 @@ UART::UART(uint32_t n) :
 {
 }
   
+void UART::initialize() {
+}
+
 void UART::set_enable(bool value) {
   UARTEnable((uint32_t) base);
 }

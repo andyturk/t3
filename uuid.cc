@@ -1,5 +1,6 @@
 #include "uuid.h"
 
+// the byte order here needs to be reversed
 UUID::UUID() :
   data({0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x10, 0x00,
@@ -17,6 +18,7 @@ static int from_hex(char c) {
 int UUID::compare(const UUID &u1, const UUID &u2) {
   uint8_t const *d1 = u1.data, *d2 = u2.data;
   for (unsigned int i=0; i < sizeof(UUID::data); ++i) {
+    // byte order needs to be reversed
     if (d1[i] < d2[i]) return -1;
     if (d1[i] > d2[i]) return 1;
   }
@@ -25,6 +27,7 @@ int UUID::compare(const UUID &u1, const UUID &u2) {
 
 UUID::UUID(uint16_t shortened) {
   for (unsigned int i=0; i < sizeof(data); ++i) data[i] = base.data[i];
+    // byte order needs to be reversed
   data[2] = shortened >> 8;
   data[3] = shortened & 0x00ff;
 }

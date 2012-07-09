@@ -99,7 +99,7 @@ namespace HCI {
     EVENT_PACKET            = 0x04
   };
 
-  enum opcodes {
+  enum hci_opcodes {
     COMMAND(LC, 0x0001, INQUIRY)
     COMMAND(LC, 0x0002, INQUIRY_CANCEL)
     COMMAND(LC, 0x0003, PERIODIC_INQUIRY_MODE)

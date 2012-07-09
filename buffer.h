@@ -22,6 +22,7 @@ class FlipBuffer {
   size_t get_limit() const {return limit;}
   size_t get_mark() const {return mark;}
   size_t get_remaining() const {return limit - position;}
+  T *ptr() {return storage + position;}
 
   void initialize(T *s, size_t c) {
     storage = s;
@@ -37,6 +38,8 @@ class FlipBuffer {
   void rewind() {position = 0;}
   void set_mark() {mark = position;}
   void back_to_mark() {position = mark;}
+  void seek(size_t p) {position = p;}
+  void skip(int offset) {position += offset;}
   
   T get() {return storage[position++];}
   T get(size_t pos) {return storage[pos];}

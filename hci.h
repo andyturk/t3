@@ -6,6 +6,8 @@
 
 #include "hal.h"
 #include "buffer.h"
+#include "ring.h"
+#include "command_defs.h"
 
 extern const char hex_digits[16];
 
@@ -35,39 +37,162 @@ namespace HCI {
     }
   };
 
-  template<typename T>
-  struct Ring {
-    Ring *left;
-    Ring *right;
-
-    Ring() {left = right = this;}
-    bool empty() const {return left == this && right == this;}
-
-    void join(Ring *other) { // join right
-      // remove this from its current ring
-      left->right = this->right;
-      right->left = this->left;
-
-      // form a singleton ring so that x->join(x) works
-      left = right = this;
-
-      // set up local pointers
-      this->right = other->right;
-      this->left = other;
-
-      // splice this into the other ring
-      other->right->left = this;
-      other->right = this;
-    }
-  };
+  typedef char *local_name_ptr;
+  typedef char local_name[248];
+  extern "C" void * memcpy(void * dst, void const * src, size_t len);
 
   class Packet : public Ring<Packet>, public FlipBuffer<uint8_t> {
-    void vfput(const char *format, va_list args);
-
+    //void vfput(const char *format, va_list args);
+    
   public:
     Packet(uint8_t *buf, size_t len) : FlipBuffer<uint8_t>(buf, len) {}
-    void command(uint16_t opcode, const char *format = 0, ...);
-    void fget(const char *format, ...);
+
+    void read(uint8_t *p, size_t len) {
+      assert(position + len <= limit);
+      memcpy(p, storage + position, len);
+      position += len;
+    }
+
+    void write(const uint8_t *p, size_t len) {
+      assert(position + len <= limit);
+      memcpy(storage + position, p, len);
+      position += len;
+    }
+
+    Packet &operator<<(uint8_t x) {
+      put(x);
+      return *this;
+    }
+
+    Packet &operator<<(uint16_t x) {
+      put(x & 0x00ff);
+      put(x >> 8);
+      return *this;
+    }
+
+    Packet &operator<<(hci_opcodes x) {
+      begin_hci(COMMAND_PACKET);
+      return *this << (uint16_t) x << (uint8_t) 0;
+    }
+
+    Packet &operator<<(uint32_t x) {
+      put((x >>  0) & 0x000000ff);
+      put((x >>  8) & 0x000000ff);
+      put((x >> 16) & 0x000000ff);
+      put((x >> 24) & 0x000000ff);
+      return *this;
+    }
+
+    Packet &operator<<(const uint64_t &x) {
+      // assume little endian
+      const uint8_t *p = (const uint8_t *) &x;
+      do {put(*p++);} while (p < (uint8_t *) ((&x)+1));
+      return *this;
+    }
+
+    Packet &operator<<(const BD_ADDR &addr) {
+      write((uint8_t *) &addr, sizeof(BD_ADDR));
+      return *this;
+    }
+
+    Packet &operator<<(local_name_ptr name) {
+      unsigned int i=0;
+      while (i < sizeof(local_name) && name[i] != 0) put(name[i++]);
+      while (i < sizeof(local_name)) {put(0); ++i;}
+      return *this;
+    }
+
+    Packet &operator>>(uint8_t &x) {
+      x = get();
+      return *this;
+    }
+
+    Packet &operator>>(uint16_t &x) {
+      x = get() + (get() << 8);
+      return *this;
+    }
+
+    Packet &operator>>(uint32_t &x) {
+      x = get() + (get() << 8) + (get() << 16) + (get() << 24);
+      return *this;
+    }
+
+    Packet &operator>>(uint64_t &x) {
+      // assume little endian
+      uint8_t *p = (uint8_t *) &x;
+      do {*p++ = get();} while (p < (uint8_t *) ((&x)+1));
+      return *this;
+    }
+
+    Packet &operator>>(BD_ADDR &addr) {
+      read((uint8_t *) &addr, sizeof(BD_ADDR));
+      return *this;
+    }
+
+    Packet &operator>>(local_name_ptr name) {
+      read((uint8_t *) name, sizeof(local_name));
+      return *this;
+    }
+
+    void prepare_for_tx() {
+      if (position != 0) flip();
+
+      switch (storage[0]) {
+      case COMMAND_PACKET :
+        seek(3);
+        *this << (uint8_t) (limit - 4); // command length
+        break;
+
+      case ACL_PACKET :
+        seek(3);
+        *this << (uint16_t) (limit - 5); // acl length
+        *this << (uint16_t) (limit - 9); // l2cap length
+        break;
+      }
+
+      seek(0);
+    }
+
+    enum {
+      HCI_HEADER_SIZE = 1,
+      ACL_HEADER_SIZE = HCI_HEADER_SIZE + 4,
+      L2CAP_HEADER_SIZE = ACL_HEADER_SIZE + 4
+    };
+
+    void begin_hci(enum packet_indicator ind) {
+      reset();
+      *this << (uint8_t) ind;
+    }
+    void end_hci() {}
+
+    void begin_acl(uint16_t handle, uint8_t pb, uint8_t bc) {
+      begin_hci(ACL_PACKET);
+      uint16_t dummy_length = 0;
+      *this << (uint16_t) ((bc << 14) + (pb << 12) + handle) << dummy_length;
+    }
+    void end_acl() {
+      uint16_t acl_data_length = position - ACL_HEADER_SIZE;
+      size_t saved_position = position;
+      position = ACL_HEADER_SIZE - sizeof(uint16_t);
+      *this << acl_data_length;
+      position = saved_position;
+    }
+
+    void begin_l2cap(uint16_t handle, uint16_t cid) {
+      begin_acl(handle, 0x02, 0x00);
+      uint16_t dummy_length = 0;
+      *this << dummy_length << cid;
+    }
+    void end_l2cap() {
+      uint16_t l2cap_data_length = position - L2CAP_HEADER_SIZE;
+      size_t saved_position = position;
+      position = L2CAP_HEADER_SIZE - sizeof(uint16_t);
+      *this << l2cap_data_length;
+      position = saved_position;
+    }
+
+    //void command(uint16_t opcode, const char *format = 0, ...);
+    //void fget(const char *format, ...);
     void dump();
   };
 
@@ -98,10 +223,10 @@ namespace HCI {
     }
 
     T *allocate() {
-      if (available.empty()) return 0;
+      T *p = available.begin();
+      if (p == available.end()) return 0;
 
       __asm("cpsid i");
-      T *p = (T *) available.right;
       p->join(p);
       p->reset();
       __asm("cpsie i");
@@ -167,7 +292,7 @@ class BBand {
 
   void standard_packet_handler(Packet *p);
   void default_event_handler(uint8_t event, Packet *p);
-  void acl_packet_handler(uint16_t handle, uint8_t flags, Packet *p);
+  void acl_packet_handler(uint16_t handle, uint8_t pb, uint8_t bc, Packet *p);
   void l2cap_packet_handler(Packet *p);
   void le_event_handler(uint8_t subevent, Packet *p);
   void att_packet_handler(Packet *p);
@@ -185,7 +310,3 @@ class BBand {
   void uart_interrupt_handler();
   void process_incoming_packets();
 };
-
-#include "command_defs.h"
-
-

@@ -24,6 +24,7 @@ const char hex_digits[16] = {
   '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 };
 
+/*
 void Packet::command(uint16_t opcode, const char *format, ...) {
   reset();
   put(HCI::COMMAND_PACKET);
@@ -318,6 +319,7 @@ void HCI::Packet::fget(const char *format, ...) {
 
   va_end(args);
 }
+*/
 
 void Packet::dump() {
   for (unsigned int i=position; i < limit; ++i) {
@@ -395,6 +397,7 @@ void BBand::initialize() {
   assert(tx != 0);
 
   command_complete_handler = &cold_boot;
+
   cold_boot(0, tx);
 
   shutdown.set_value(1); // clear SHUTDOWN
@@ -492,8 +495,9 @@ void BBand::process_incoming_packets() {
   do {
     uart.set_interrupt_enable(false);
 
-    if (!incoming_packets.empty()) {
-      p = (Packet *) incoming_packets.left;
+    Ring<Packet>::Iterator i = incoming_packets.rbegin();
+    if (i != incoming_packets.end()) {
+      p = i;
       p->join(p);
     } else {
       p = 0;
@@ -506,6 +510,7 @@ void BBand::process_incoming_packets() {
 
 void BBand::send(Packet *p) {
   assert(tx == 0);
+  p->prepare_for_tx();
   tx = p;
   fill_uart();
 }
@@ -514,18 +519,18 @@ void BBand::default_event_handler(uint8_t event, Packet *p) {
   switch (event) {
   case EVENT_DISCONNECTION_COMPLETE : {
     uint16_t handle;
-    uint8_t reason;
+    uint8_t status, reason;
 
-    p->fget("21", &handle, &reason);
-    handle &= 0x0ffff;
+    *p >> status >> handle >> reason;
+    handle &= 0x0fff;
 
-    UARTprintf("disconnected 0x%04x because 0x%02x\n", handle, reason);
+    UARTprintf("disconnected 0x%04x (with status: 0x%02x) because 0x%02x\n", handle, status, reason);
     break;
   }
     
   case EVENT_LE_META_EVENT : {
     uint8_t subevent;
-    p->fget("1", &subevent);
+    *p >> subevent;
     le_event_handler(subevent, p);
     break;
   }
@@ -544,16 +549,10 @@ void BBand::le_event_handler(uint8_t subevent, Packet *p) {
     uint8_t status, role, peer_address_type, master_clock_accuracy;
     uint16_t connection_handle, conn_interval, conn_latency, supervision_timeout;
 
-    p->fget("1211b2221",
-            &status,
-            &connection_handle,
-            &role,
-            &peer_address_type,
-            &peer_address,
-            &conn_interval,
-            &conn_latency,
-            &supervision_timeout,
-            &master_clock_accuracy);
+    *p >> status >> connection_handle >> role;
+    *p >> peer_address_type >> peer_address;
+    *p >> conn_interval >> conn_latency;
+    *p >> supervision_timeout >> master_clock_accuracy;
 
     char buf[HCI::BD_ADDR::PP_BUF_LEN];
     const char *type;
@@ -616,7 +615,7 @@ void BBand::standard_packet_handler(Packet *p) {
     if (event == EVENT_COMMAND_COMPLETE) {
       uint16_t opcode;
 
-      p->fget("12", &command_packet_budget, &opcode);
+      *p >> command_packet_budget >> opcode;
       command_complete_handler(this, opcode, p);
     } else {
       event_handler(this, event, p);
@@ -626,12 +625,13 @@ void BBand::standard_packet_handler(Packet *p) {
     
   case ACL_PACKET : {
     uint16_t raw_handle, length;
-    p->fget("22", &raw_handle, &length);
+    *p >> raw_handle >> length;
 
-    uint16_t handle = raw_handle >> 4;
-    uint8_t flags = raw_handle & 0x000f;
+    uint16_t handle = raw_handle & 0x0fff;
+    uint8_t bc = (raw_handle >> 14) & 0x0003;
+    uint8_t pb = (raw_handle >> 12) & 0x0003;
 
-    acl_packet_handler(handle, flags, p);
+    acl_packet_handler(handle, pb, bc, p);
     break;
   }
 
@@ -643,8 +643,7 @@ void BBand::standard_packet_handler(Packet *p) {
   }
 }
 
-void BBand::acl_packet_handler(uint16_t handle, uint8_t flags, Packet *p) {
-  uint8_t pb = flags >> 2, bc = flags & 0x03;
+void BBand::acl_packet_handler(uint16_t handle, uint8_t pb, uint8_t bc, Packet *p) {
   UARTprintf("ACL data, handle = 0x%04x, pb = %d, bc = %d\n", handle, pb, bc);
 
   l2cap_packet_handler(p);
@@ -653,7 +652,7 @@ void BBand::acl_packet_handler(uint16_t handle, uint8_t flags, Packet *p) {
 
 void BBand::l2cap_packet_handler(Packet *p) {
   uint16_t cid, length;
-  p->fget("22", &length, &cid);
+  *p >> length >> cid;
 
   switch(cid) {
   case L2CAP::ATTRIBUTE_CID :
@@ -669,18 +668,21 @@ void BBand::l2cap_packet_handler(Packet *p) {
 void BBand::att_packet_handler(Packet *p) {
   uint8_t opcode;
 
-  p->fget("1", &opcode);
+  *p >> opcode;
+
   switch (opcode) {
   case ATT::OPCODE_ERROR : {
     uint16_t handle;
     uint8_t error;
 
-    p->fget("21", &opcode, &handle, &error);
+    *p >> opcode >> handle >> error;
     UARTprintf("ATT error for opcode: 0x%02x, handle: 0x%04x, error: 0x%02x\n", opcode, handle, error);
     break;
   }
 
   case ATT::OPCODE_FIND_TYPE_BY_VALUE_REQUEST : {
+    uint16_t first_handle, last_handle, type;
+    *p >> first_handle >> last_handle >> type;
     break;
   }
 
@@ -702,22 +704,24 @@ void BBand::cold_boot(uint16_t opcode, Packet *p) {
     // format the tx packet and set p=0 to prevent it from
     // being sent at this time. Later on, the calling code will
     // send the contents of the tx buffer through the uart.
-    tx->command(OPCODE_RESET);
+    *tx << OPCODE_RESET;
+    tx->prepare_for_tx();
     p = 0;
 
     break;
 
   case OPCODE_RESET :
-    p->command(OPCODE_READ_LOCAL_VERSION_INFORMATION);
+    *p << OPCODE_READ_LOCAL_VERSION_INFORMATION;
     break;
 
   case OPCODE_READ_LOCAL_VERSION_INFORMATION : {
     uint8_t hci_version, lmp_version;
     uint16_t hci_revision, manufacturer_name, lmp_subversion;
-    p->fget("12122", &hci_version, &hci_revision, &lmp_version, &manufacturer_name, &lmp_subversion);
+
+    *p >> hci_version >> hci_revision >> lmp_version >> manufacturer_name >> lmp_subversion;
     assert(hci_version == SPECIFICATION_4_0);
 
-    p->command(OPCODE_PAN13XX_CHANGE_BAUD_RATE, "4", 921600L);
+    *p << OPCODE_PAN13XX_CHANGE_BAUD_RATE << (uint32_t) 921600L;
     break;
   }
 
@@ -772,6 +776,7 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
   }
 }
 
+/*
 const uint8_t warm_boot_patch[] = {
   0x01, I2(OPCODE_READ_BD_ADDR), 0,
   0x01, I2(OPCODE_READ_BUFFER_SIZE_COMMAND), 0,
@@ -790,6 +795,7 @@ const uint8_t warm_boot_patch[] = {
   0x01, I2(OPCODE_LE_SET_SCAN_RESPONSE_DATA), 8, 7, 0x02, 0x01, 0x05, 0x03, 0x02, 0xf0, 0xff,
   0x01, I2(OPCODE_LE_SET_ADVERTISE_ENABLE), 1, 0x01,
 };
+*/
 
 void BBand::warm_boot(uint16_t opcode, Packet *p) {
   assert(!uart.can_read());
@@ -809,84 +815,102 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   case 0 : {
     UARTprintf("warm boot...\n");
     uint8_t deep_sleep_enable = 0x00;
-    p->command(OPCODE_SLEEP_MODE_CONFIGURATIONS, "111411", 0x01, deep_sleep_enable, 0, 0xffffffff, 100, 0);
+    *p << OPCODE_SLEEP_MODE_CONFIGURATIONS << (uint8_t) 0x01 << deep_sleep_enable;
+    *p << (uint8_t) 0 << (uint32_t) 0xffffffff << (uint8_t) 100 << (uint8_t) 0;
+    //p->command(OPCODE_SLEEP_MODE_CONFIGURATIONS, "111411", 0x01, deep_sleep_enable, 0, 0xffffffff, 100, 0);
     break;
   }
 
   case OPCODE_SLEEP_MODE_CONFIGURATIONS :
-    p->command(OPCODE_READ_BD_ADDR);
+    *p << OPCODE_READ_BD_ADDR;
+    //p->command(OPCODE_READ_BD_ADDR);
     break;
 
   case OPCODE_READ_BD_ADDR :
-    p->fget("b", &bd_addr);
+    *p >> bd_addr;
+    //p->fget("b", &bd_addr);
 
     UARTprintf("bd_addr = ");
     for (int i=5; i >= 0; --i) UARTprintf("%02x:", bd_addr.data[i]);
     UARTprintf("\n");
 
-    p->command(OPCODE_READ_BUFFER_SIZE_COMMAND);
+    *p << OPCODE_READ_BUFFER_SIZE_COMMAND;
+    //p->command(OPCODE_READ_BUFFER_SIZE_COMMAND);
     break;
 
   case OPCODE_READ_BUFFER_SIZE_COMMAND : {
     uint16_t acl_data_length, num_acl_packets, num_synchronous_packets;
     uint8_t synchronous_data_length;
 
-    p->fget("2122", &acl_data_length, &synchronous_data_length,
-                    &num_acl_packets, &num_synchronous_packets);
+    *p >> acl_data_length >> synchronous_data_length;
+    *p >> num_acl_packets >> num_synchronous_packets;
+
+    // p->fget("2122", &acl_data_length, &synchronous_data_length,
+    //                    &num_acl_packets, &num_synchronous_packets);
 
     UARTprintf("acl: %d @ %d, synchronous: %d @ %d\n",
                num_acl_packets, acl_data_length,
                num_synchronous_packets, synchronous_data_length);
 
-    p->command(OPCODE_WRITE_PAGE_TIMEOUT, "2", 0x2000);
+    *p << OPCODE_WRITE_PAGE_TIMEOUT << (uint16_t) 0x2000;
+    //p->command(OPCODE_WRITE_PAGE_TIMEOUT, "2", 0x2000);
     break;
   }
 
   case OPCODE_WRITE_PAGE_TIMEOUT :
-    p->command(OPCODE_READ_PAGE_TIMEOUT);
+    *p << OPCODE_READ_PAGE_TIMEOUT;
+    //p->command(OPCODE_READ_PAGE_TIMEOUT);
     break;
 
   case OPCODE_READ_PAGE_TIMEOUT : {
     uint16_t timeout;
 
-    p->fget("2", &timeout);
+    *p >> timeout;
+    //p->fget("2", &timeout);
     uint32_t usec = timeout*625;
     UARTprintf("page timeout = %d.%d msec\n", usec/1000, usec%1000);
 
-    p->command(OPCODE_WRITE_LOCAL_NAME_COMMAND, "n", "Super Whizzy Gizmo 1.0");
+    *p << OPCODE_WRITE_LOCAL_NAME_COMMAND << (local_name_ptr) "Super Whizzy Gizmo 1.0";
+    //p->command(OPCODE_WRITE_LOCAL_NAME_COMMAND, "n", "Super Whizzy Gizmo 1.0");
     break;
   }
 
   case OPCODE_WRITE_LOCAL_NAME_COMMAND :
     UARTprintf("local name set\n");
-    p->command(OPCODE_WRITE_SCAN_ENABLE, "1", 0x03);
+    *p << OPCODE_WRITE_SCAN_ENABLE << (uint8_t) 0x03;
+    //p->command(OPCODE_WRITE_SCAN_ENABLE, "1", 0x03);
     break;
 
   case OPCODE_WRITE_SCAN_ENABLE :
     UARTprintf("local scans enabled\n");
     // http://bluetooth-pentest.narod.ru/software/bluetooth_class_of_device-service_generator.html
-    p->command(OPCODE_WRITE_CLASS_OF_DEVICE, "4", 0x0098051c);
+    *p << OPCODE_WRITE_CLASS_OF_DEVICE << (uint32_t) 0x0098051c;
+    // p->command(OPCODE_WRITE_CLASS_OF_DEVICE, "4", 0x0098051c);
     break;
 
   case OPCODE_WRITE_CLASS_OF_DEVICE :
     UARTprintf("device class set\n");
-    p->command(OPCODE_SET_EVENT_MASK, "44", 0xffffffff, 0x20001fff);
+    *p << OPCODE_SET_EVENT_MASK << (uint32_t) 0xffffffff << (uint32_t) 0x20001fff;
+    // p->command(OPCODE_SET_EVENT_MASK, "44", 0xffffffff, 0x20001fff);
     break;
 
   case OPCODE_SET_EVENT_MASK :
     UARTprintf("event mask set\n");
-    p->reset();
-    p->command(OPCODE_WRITE_LE_HOST_SUPPORT, "11", 1, 1);
+    *p << OPCODE_WRITE_LE_HOST_SUPPORT << (uint8_t) 1 << (uint8_t) 1;
+    //p->reset();
+    //p->command(OPCODE_WRITE_LE_HOST_SUPPORT, "11", 1, 1);
     break;
 
   case OPCODE_WRITE_LE_HOST_SUPPORT :
     UARTprintf("host support written\n");
-    p->command(OPCODE_LE_SET_EVENT_MASK, "44", 0x0000001f, 0x00000000);
+    *p << OPCODE_LE_SET_EVENT_MASK << (uint32_t) 0x0000001f << (uint32_t) 0x00000000;
+    //p->command(OPCODE_LE_SET_EVENT_MASK, "44", 0x0000001f, 0x00000000);
     break;
 
   case OPCODE_LE_SET_EVENT_MASK :
     UARTprintf("event mask set\n");
-    p->command(OPCODE_LE_READ_BUFFER_SIZE);
+    *p << OPCODE_LE_READ_BUFFER_SIZE;
+    //p->command(OPCODE_LE_READ_BUFFER_SIZE);
     break;
 
   case OPCODE_LE_READ_BUFFER_SIZE : {
@@ -894,24 +918,31 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     uint16_t le_data_packet_length;
     uint8_t num_le_packets;
 
-    p->fget("21", &le_data_packet_length, &num_le_packets);
+    *p >> le_data_packet_length >> num_le_packets;
+    //p->fget("21", &le_data_packet_length, &num_le_packets);
     UARTprintf("le_data_packet_length = %d, num_packets = %d\n", le_data_packet_length, num_le_packets);
 
-    p->command(OPCODE_LE_READ_SUPPORTED_STATES);
+    *p << OPCODE_LE_READ_SUPPORTED_STATES;
+    //p->command(OPCODE_LE_READ_SUPPORTED_STATES);
     break;
   }
 
   case OPCODE_LE_READ_SUPPORTED_STATES : {
     UARTprintf("supported states read\n");
 
-    uint8_t states[8];
-    p->fget("8", states);
+    uint64_t states;
+    *p >> states;
+    //p->fget("8", states);
     UARTprintf("states = 0x");
-    for (int i=0; i < 8; ++i) UARTprintf("%02x", states[i]);
+    for (int i=0; i < 8; ++i) UARTprintf("%02x", ((uint8_t *) &states)[i]);
     UARTprintf("\n");
 
-    p->command(OPCODE_LE_SET_ADVERTISING_PARAMETERS, "22111b11",
-               0x0800, 0x4000, 0, 0, 0, &bd_addr, 0x07, 0);
+    *p << OPCODE_LE_SET_ADVERTISING_PARAMETERS << (uint16_t) 0x0800 << (uint16_t) 0x4000;
+    *p << (uint8_t) 0 << (uint8_t) 0 << (uint8_t) 0;
+    *p << bd_addr << (uint8_t) 0x07 << (uint8_t) 0;
+
+    //p->command(OPCODE_LE_SET_ADVERTISING_PARAMETERS, "22111b11",
+    //               0x0800, 0x4000, 0, 0, 0, &bd_addr, 0x07, 0);
     break;
   }
     
@@ -921,33 +952,74 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     // AD #1, data type (0x01) <<Flags>>
     // AD #2, data type (0x02) <<Incomplete list of 16-bit service UUIDs>>
 
+    /*
+    uint8_t num_parameters = 0;
     uint8_t advertising_data[] = {02, 01, 05, 03, 02, 0xf0, 0xff, 0,
                                   0, 0, 0, 0, 0, 0, 0, 0,
                                   0, 0, 0, 0, 0, 0, 0, 0,
                                   0, 0, 0, 0, 0, 0, 0};
+    */
 
-    p->command(OPCODE_LE_SET_ADVERTISING_DATA, "1**", sizeof(advertising_data),
-               advertising_data, sizeof(advertising_data),
-               advertising_data, 31 - sizeof(advertising_data));
+    *p << OPCODE_LE_SET_ADVERTISING_DATA;
+    assert(p->get_remaining() > 31);
+    Packet adv(p->ptr(), 31); // a piece of the main packet
+    uint8_t *start;
+
+    // data item 1
+    start = adv.ptr();
+    adv << (uint8_t) 0; // dummy length
+    adv << (uint8_t) GAP::FLAGS;
+    adv << (uint8_t) (GAP::LE_LIMITED_DISCOVERABLE_MODE | GAP::BR_EDR_NOT_SUPPORTED);
+    *start = (adv.ptr() - start) - 1;
+
+    // data item 2
+    start = adv.ptr();
+    adv << (uint8_t) 0; // dummy length
+    adv << (uint8_t) GAP::INCOMPLETE_16BIT_UUIDS;
+    adv << (uint16_t) 0xfff0; // demo UUID not in the Bluetooth spec
+    *start = (adv.ptr() - start) - 1;
+
+    // zero pad to 31 bytes
+    while (adv.get_position() < 31) adv << (uint8_t) 0;
+    assert(adv.get_position() == 31);
+
+    p->skip(31);
     break;
   }
     
   case OPCODE_LE_SET_ADVERTISING_DATA : {
     UARTprintf("advertising data set\n");
-    uint8_t advertising_data[] = {02, 01, 05, 03, 02, 0xf0, 0xff, 0,
-                                  0, 0, 0, 0, 0, 0, 0, 0,
-                                  0, 0, 0, 0, 0, 0, 0, 0,
-                                  0, 0, 0, 0, 0, 0, 0};
 
-    p->command(OPCODE_LE_SET_SCAN_RESPONSE_DATA, "1**", sizeof(advertising_data),
-               advertising_data, sizeof(advertising_data),
-               advertising_data, 31 - sizeof(advertising_data));
+    *p << OPCODE_LE_SET_SCAN_RESPONSE_DATA;
+    assert(p->get_remaining() > 31);
+    Packet adv(p->ptr(), 31); // a piece of the main packet
+    uint8_t *start;
+
+    // data item 1
+    start = adv.ptr();
+    adv << (uint8_t) 0; // dummy length
+    adv << (uint8_t) GAP::FLAGS;
+    adv << (uint8_t) (GAP::LE_LIMITED_DISCOVERABLE_MODE | GAP::BR_EDR_NOT_SUPPORTED);
+    *start = (adv.ptr() - start) - 1;
+
+    // data item 2
+    start = adv.ptr();
+    adv << (uint8_t) 0; // dummy length
+    adv << (uint8_t) GAP::INCOMPLETE_16BIT_UUIDS;
+    adv << (uint16_t) 0xfff0; // demo UUID not in the Bluetooth spec
+    *start = (adv.ptr() - start) - 1;
+
+    // zero pad to 31 bytes
+    while (adv.get_position() < 31) adv << (uint8_t) 0;
+    assert(adv.get_position() == 31);
+
+    p->skip(31);
     break;
   }
     
   case OPCODE_LE_SET_SCAN_RESPONSE_DATA :
     UARTprintf("response data set\n");
-    p->command(OPCODE_LE_SET_ADVERTISE_ENABLE, "1", 0x01);
+    *p << OPCODE_LE_SET_ADVERTISE_ENABLE << (uint8_t) 0x01;
     break;
 
   case OPCODE_LE_SET_ADVERTISE_ENABLE :

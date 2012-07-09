@@ -62,7 +62,7 @@ class UART : public Peripheral {
   };
 
   virtual void configure() = 0;
-  virtual void initialize() {}
+  virtual void initialize();
 
   void set_enable(bool value);
   void set_baud(uint32_t bps);
