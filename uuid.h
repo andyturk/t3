@@ -13,7 +13,7 @@ class UUID {
   UUID(uint16_t shortened);
   UUID(const UUID &other);
 
-  operator uint16_t() { return data[3] + (data[2] << 8); }
+  operator uint16_t() { return data[13] + (data[14] << 8); }
   static int compare(const UUID &u1, const UUID &u2);
 };
 

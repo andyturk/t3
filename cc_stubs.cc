@@ -110,4 +110,16 @@ extern "C" {
       }
     return (dst);
   }
+
+  int memcmp(const void *x0, const void *y0, size_t len) {
+    if (len > 0) {
+      const uint8_t *x = (const uint8_t *) x0;
+      const uint8_t *y = (const uint8_t *) y0;
+
+      do {
+        if (*x++ != *y++) return *--x - *--y;
+      } while (--len >= 0);
+    }
+    return 0;
+  }
 }

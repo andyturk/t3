@@ -1,11 +1,13 @@
+#include <stddef.h>
+
 #include "uuid.h"
 
 // the byte order here needs to be reversed
 UUID::UUID() :
-  data({0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x10, 0x00,
+  data({0xfb, 0x34, 0x9b, 0x5f,
         0x80, 0x00, 0x00, 0x80,
-        0x5F, 0x9B, 0x34, 0xFB})
+        0x00, 0x10, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00})
 {}
 
 static int from_hex(char c) {
@@ -15,21 +17,16 @@ static int from_hex(char c) {
   return -1;
 }
 
+extern "C" int memcmp(const void *x, const void *y, size_t len);
+
 int UUID::compare(const UUID &u1, const UUID &u2) {
-  uint8_t const *d1 = u1.data, *d2 = u2.data;
-  for (unsigned int i=0; i < sizeof(UUID::data); ++i) {
-    // byte order needs to be reversed
-    if (d1[i] < d2[i]) return -1;
-    if (d1[i] > d2[i]) return 1;
-  }
-  return 0;
+  return memcmp(u1.data, u2.data, sizeof(UUID::data));
 }
 
 UUID::UUID(uint16_t shortened) {
   for (unsigned int i=0; i < sizeof(data); ++i) data[i] = base.data[i];
-    // byte order needs to be reversed
-  data[2] = shortened >> 8;
-  data[3] = shortened & 0x00ff;
+  data[13] = (uint8_t) (shortened >> 8);
+  data[14] = (uint8_t) (shortened & 0x00ff);
 }
 
 UUID::UUID(const UUID &other) {
