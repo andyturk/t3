@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include "hci.h"
+#include "l2cap.h"
 #include "uuid.h"
 #include "ring.h"
 
@@ -215,7 +216,7 @@ namespace GATT {
     GAPService(const char *name);
   };
 
-  struct Server {
+  struct Server : public L2CAP::Channel {
     uint16_t next_handle;
     Ring<Service> services;
     void add(Service &s);
