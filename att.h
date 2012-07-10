@@ -222,8 +222,9 @@ namespace GATT {
 
     Server();
 
+    void send(Packet *p);
+    Packet *get_packet();
     void att_packet_handler(Packet *p);
-    void find_by_type_value_request(uint16_t from, uint16_t to, uint16_t type, uint8_t *value, uint16_t length);
     
   };
 };

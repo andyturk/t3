@@ -50,8 +50,21 @@ namespace GATT {
       *p >> first_handle >> last_handle >> type;
       length = p->get_remaining(); // is this right?
 
-      for (Service::Iterator i = services.begin(); i != services.end(); ++i) {
+      if (first_handle > last_handle || first_handle == 0) {
+        p->reset_l2cap();
+        *p << (uint8_t) ATT::OPCODE_ERROR << first_handle << (uint8_t) ATT::INVALID_HANDLE;
+        //send(p);
+      } else {
+        p->reset_l2cap();
+        *p << (uint8_t) ATT::OPCODE_FIND_TYPE_BY_VALUE_RESPONSE;
+
+        for (Service::Iterator i = services.begin(); i != services.end(); ++i) {
+          for (Characteristic::Iterator c = i->characteristics.begin(); c != i->characteristics.end(); ++c) {
+            
+          }
+        }
       }
+
       break;
     }
 
