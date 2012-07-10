@@ -163,19 +163,11 @@ namespace HCI {
       reset();
       *this << (uint8_t) ind;
     }
-    void end_hci() {}
 
     void begin_acl(uint16_t handle, uint8_t pb, uint8_t bc) {
       begin_hci(ACL_PACKET);
       uint16_t dummy_length = 0;
       *this << (uint16_t) ((bc << 14) + (pb << 12) + handle) << dummy_length;
-    }
-    void end_acl() {
-      uint16_t acl_data_length = position - ACL_HEADER_SIZE;
-      size_t saved_position = position;
-      position = ACL_HEADER_SIZE - sizeof(uint16_t);
-      *this << acl_data_length;
-      position = saved_position;
     }
 
     void begin_l2cap(uint16_t handle, uint16_t cid) {
@@ -183,16 +175,19 @@ namespace HCI {
       uint16_t dummy_length = 0;
       *this << dummy_length << cid;
     }
-    void end_l2cap() {
-      uint16_t l2cap_data_length = position - L2CAP_HEADER_SIZE;
-      size_t saved_position = position;
-      position = L2CAP_HEADER_SIZE - sizeof(uint16_t);
-      *this << l2cap_data_length;
-      position = saved_position;
-    }
 
-    //void command(uint16_t opcode, const char *format = 0, ...);
-    //void fget(const char *format, ...);
+    /*
+     * This function assumes the packet already contains a fully formatted
+     * L2CAP packet. The packet is reset, but the L2CAP framing is preserved
+     * in place, including the source/destination handle and the channel ID.
+     * The position is left at the first L2CAP payload byte. Length fields are
+     * not modified here and must be set (via prepare_for_tx) before the packet
+     * can be sent.
+     */
+    void reset_l2cap() {
+      reset();
+      seek(L2CAP_HEADER_SIZE);
+    }
     void dump();
   };
 
