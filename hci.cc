@@ -12,9 +12,7 @@ const char hex_digits[16] = {
 
 void Packet::dump() {
   for (unsigned int i=position; i < limit; ++i) {
-    char c1 = hex_digits[storage[i]] >> 4;
-    char c2 = hex_digits[storage[i]] &0x0f;
-    UARTprintf("%c%c ", c1, c2);
+    UARTprintf("%02x ", storage[i]);
   }
 }
 
