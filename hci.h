@@ -11,18 +11,6 @@
 
 extern const char hex_digits[16];
 
-namespace L2CAP {
-  enum fixed_channel_ids {
-    SIGNALLING_CID       = 0x0001,
-    CONNECTIONLESS_CID   = 0x0002,
-    AMP_MANAGER_CID      = 0x0003,
-    ATTRIBUTE_CID        = 0x0004,
-    LE_SIGNALLING_CID    = 0x0005,
-    SECURITY_MANAGER_CID = 0x0006,
-    AMP_TEST_MANAGER_CID = 0x003f
-  };
-};
-
 namespace HCI {
   struct BD_ADDR {
     enum {PP_BUF_LEN = 24};
