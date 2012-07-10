@@ -649,13 +649,13 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
                                   0, 0, 0, 0, 0, 0, 0};
     */
 
-    *p << OPCODE_LE_SET_ADVERTISING_DATA;
+    *p << OPCODE_LE_SET_ADVERTISING_DATA << (uint8_t) 0;
     assert(p->get_remaining() > 31);
     Packet adv(p->ptr(), 31); // a piece of the main packet
-    uint8_t *start;
+    uint8_t *start0, *start;
 
     // data item 1
-    start = adv.ptr();
+    start = start0 = adv.ptr();
     adv << (uint8_t) 0; // dummy length
     adv << (uint8_t) GAP::FLAGS;
     adv << (uint8_t) (GAP::LE_LIMITED_DISCOVERABLE_MODE | GAP::BR_EDR_NOT_SUPPORTED);
@@ -672,6 +672,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     while (adv.get_position() < 31) adv << (uint8_t) 0;
     assert(adv.get_position() == 31);
 
+    *start0 = adv.get_position();
     p->skip(31);
     break;
   }
@@ -679,13 +680,13 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   case OPCODE_LE_SET_ADVERTISING_DATA : {
     UARTprintf("advertising data set\n");
 
-    *p << OPCODE_LE_SET_SCAN_RESPONSE_DATA;
+    *p << OPCODE_LE_SET_SCAN_RESPONSE_DATA << (uint8_t) 0;
     assert(p->get_remaining() > 31);
     Packet adv(p->ptr(), 31); // a piece of the main packet
-    uint8_t *start;
+    uint8_t *start0, *start;
 
     // data item 1
-    start = adv.ptr();
+    start = start0 = adv.ptr();
     adv << (uint8_t) 0; // dummy length
     adv << (uint8_t) GAP::FLAGS;
     adv << (uint8_t) (GAP::LE_LIMITED_DISCOVERABLE_MODE | GAP::BR_EDR_NOT_SUPPORTED);
@@ -701,6 +702,8 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     // zero pad to 31 bytes
     while (adv.get_position() < 31) adv << (uint8_t) 0;
     assert(adv.get_position() == 31);
+
+    *start0 = adv.get_position();
 
     p->skip(31);
     break;
