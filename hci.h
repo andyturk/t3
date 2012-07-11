@@ -8,7 +8,7 @@
 #include "buffer.h"
 #include "ring.h"
 #include "uuid.h"
-#include "command_defs.h"
+#include "bluetooth_constants.h"
 
 extern const char hex_digits[16];
 
@@ -59,7 +59,7 @@ namespace HCI {
       return *this;
     }
 
-    Packet &operator<<(hci_opcodes x) {
+    Packet &operator<<(HCI::opcode x) {
       begin_hci(COMMAND_PACKET);
       return *this << (uint16_t) x << (uint8_t) 0;
     }
