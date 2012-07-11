@@ -1,6 +1,8 @@
 #include "hci.h"
 #include "att.h"
 #include "l2cap.h"
+#include "cc_stubs.h"
+
 #include "utils/uartstdio.h"
 
 using namespace HCI;
@@ -16,6 +18,16 @@ void Packet::dump() {
   }
 }
 
+uint16_t AttributeBase::next_handle = 0;
+
+int AttributeBase::compare(void *other, uint16_t len) {
+  size_t shorter = length < len ? length : len;
+  int c = memcmp(_data, other, shorter);
+  if (c != 0) return c;
+  if (len == length) return c;
+  return length < len ? -1 : 1;
+}
+
 BBand::BBand(UART &u, IOPin &s) :
   uart(u),
   shutdown(s),
@@ -24,6 +36,7 @@ BBand::BBand(UART &u, IOPin &s) :
   indicator_packet(indicator_packet_storage, sizeof(indicator_packet_storage)),
   event_handler(&default_event_handler)
 {
+  // gap_service.join(&att_server.services);
 }
 
 void BBand::drain_uart() {

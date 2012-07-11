@@ -122,4 +122,11 @@ extern "C" {
     }
     return 0;
   }
+
+  unsigned int strlen(const char *p0) {
+    const char *p = p0;
+    while (*p) p++;
+    ++p;
+    return p - p0;
+  }
 }

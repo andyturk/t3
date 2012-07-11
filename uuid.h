@@ -13,7 +13,9 @@ class UUID {
   UUID(uint16_t shortened);
   UUID(const UUID &other);
 
-  operator uint16_t() { return data[13] + (data[14] << 8); }
+  bool is_16bit() const;
+  operator uint16_t() const { return data[13] + (data[14] << 8); }
+  operator uint8_t const *() const { return data; }
   static int compare(const UUID &u1, const UUID &u2);
 };
 

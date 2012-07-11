@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <deque>
 
+#include "cc_stubs.h"
 #include "hal.h"
 #include "buffer.h"
 #include "ring.h"
@@ -122,6 +123,8 @@ namespace HCI {
       read((uint8_t *) name, sizeof(local_name));
       return *this;
     }
+
+    operator uint8_t *() {return storage + position;}
 
     void prepare_for_tx() {
       if (position != 0) flip();
@@ -243,68 +246,158 @@ class Channel : public Ring<Channel> {
   ~Channel();
 
   virtual void receive(HCI::Packet *p);
+  virtual void send(HCI::Packet *p);
   static Channel *find(uint16_t id);
 };
 
 using namespace HCI;
 
-  struct AttributeBase {
-    UUID type;
-    uint16_t handle;
-    void *_data;
-    uint16_t length;
+struct AttributeBase : public Ring<AttributeBase> {
+  static uint16_t next_handle;
 
-    AttributeBase(const UUID &t, void *d, uint16_t l) : type(t), _data(d), length(l) {}
-    AttributeBase(int16_t t, void *d, uint16_t l) : type(t), _data(d), length(l) {}
-  };
+  UUID type;
+  uint16_t handle;
+  void *_data;
+  uint16_t length;
 
-  template<typename T>
-  class Attribute : public AttributeBase {
-    T data;
+  AttributeBase(const UUID &t, void *d, uint16_t l) :
+  type(t), handle(++next_handle), _data(d), length(l) {}
+  AttributeBase(int16_t t, void *d, uint16_t l) :
+    type(t), handle(++next_handle), _data(d), length(l) {}
 
-  public:
-    Attribute(const UUID &u) : AttributeBase(u, &data, sizeof(data)) {}
-    Attribute(uint16_t u) : AttributeBase(u, &data, sizeof(data)) {}
-  };
+  int compare(void *data, uint16_t len);
+  int compare(void *data, uint16_t len, uint16_t min_handle, uint16_t max_handle);
+  virtual uint16_t group_end_handle();
+};
 
-  struct Server;
+template<typename T>
+class Attribute : public AttributeBase {
+  T data;
 
-  struct Characteristic : public Ring<Characteristic> {
+ public:
+  Attribute(const UUID &u) : AttributeBase(u, &data, sizeof(data)) {}
+  Attribute(uint16_t u) : AttributeBase(u, &data, sizeof(data)) {}
+
+  Attribute &operator=(const T &rhs) {data = rhs; return *this;};
+};
+
+template<>
+class Attribute<const char *> : public AttributeBase {
+  const char *data;
+
+ public:
+  Attribute(const UUID &u) : AttributeBase(u, &data, sizeof(data)) {}
+  Attribute(uint16_t u) : AttributeBase(u, &data, sizeof(data)) {}
+
+  Attribute &operator=(const char *rhs) {data = rhs; length = strlen(rhs); return *this;};
+};
+
+class ATT_Channel : public Channel {
+  void find_by_type_value(Packet *p);
+  Ring<AttributeBase> attributes;
+
+ public:
+  ATT_Channel() : Channel(L2CAP::ATTRIBUTE_CID) {}
+  void receive(Packet *p);
+  void add(AttributeBase &attr) { attr.join(&attributes); }
+};
+
+struct CharacteristicDecl : public AttributeBase {
+  struct {
     uint8_t properties;
-    uint16_t declaration_handle;
-    AttributeBase *attribute;
-    Characteristic(uint8_t p, AttributeBase *a);
-  };
+    uint16_t handle;
+    union {
+      uint8_t full_uuid[sizeof(UUID)];
+      uint16_t short_uuid;
+    };
+  } __attribute__ ((packed)) _decl ;
 
-  struct Service : public Ring<Service> {
-    const uint16_t type;
-    uint16_t declaration_handle;
-    Ring<Service> includes;
-    Ring<Characteristic> characteristics;
+  CharacteristicDecl(const UUID &uuid) :
+    AttributeBase(uuid, &_decl, sizeof(_decl))
+  {
+    _decl.properties = 0;
+    _decl.handle = 0;
 
-    Service(bool primary);
-    void add_to(Server &s);
-  };
+    if (uuid.is_16bit()) {
+      _decl.short_uuid = (uint16_t) uuid;
+      length = sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t);
+    } else {
+      memcpy(_decl.full_uuid, (const uint8_t *) uuid, sizeof(UUID));
+      length = sizeof(uint8_t) + sizeof(uint16_t) + sizeof(UUID);
+    }
+  }
+};
 
-  class GAPService : public Service {
-    AttributeBase name;
-    Characteristic name_decl;
+template<typename T>
+struct Characteristic : public CharacteristicDecl {
+  Attribute<T> value;
+  Characteristic(const UUID &uuid) :
+    CharacteristicDecl(GATT::CHARACTERISTIC),
+    value(uuid)
+  {
+    _decl.handle = value.handle;
+  }
+    Characteristic &operator=(const T &rhs) {value = rhs; return *this;}
+};
 
-  public:
-    GAPService(const char *name);
-  };
+struct MyService : public CharacteristicDecl {
+  UUID device_name_uuid;
+  UUID appearance_uuid;
 
-  struct Server : public Channel {
-    uint16_t next_handle;
-    Ring<Service> services;
-    void add(Service &s);
+  Characteristic<const char *> device_name;
+  Characteristic<uint16_t> appearance;
 
-    Server() : Channel(L2CAP::ATTRIBUTE_CID) {}
+  MyService() :
+    CharacteristicDecl(GATT::PRIMARY_SERVICE),
+      device_name_uuid(GATT::DEVICE_NAME),
+      appearance_uuid(GATT::APPEARANCE),
 
-    void send(HCI::Packet *p);
-    HCI::Packet *get_packet();
-    virtual void receive(HCI::Packet *p);
-  };
+      device_name(device_name_uuid),
+      appearance(appearance_uuid)
+  {
+    appearance = (uint16_t) 0;
+    device_name = "Happy Foobar";
+  }
+};
+
+struct Service : public Ring<Service>, Attribute<uint16_t> {
+  Ring<Service> includes;
+  Ring<AttributeBase> attributes;
+
+  Service(uint16_t type) : Attribute<uint16_t>(type) {}
+};
+
+struct Server : public Channel {
+  uint16_t next_handle;
+  Ring<Service> services;
+
+  void add(Service &s);
+
+  Server() : Channel(L2CAP::ATTRIBUTE_CID) {}
+
+  HCI::Packet *get_packet();
+  virtual void receive(HCI::Packet *p);
+};
+
+extern "C" unsigned int strlen(const char *);
+
+class GAP_Service : public Service {
+  Attribute<const char *> device_name;
+  Attribute<uint8_t> appearance;
+
+public:
+  GAP_Service() :
+    Service(GATT::PRIMARY_SERVICE),
+    device_name(GATT::DEVICE_NAME),
+    appearance(GATT::APPEARANCE)
+  {
+    device_name._data = (void *) "Fun Thing";
+    device_name.length = strlen((const char *) device_name._data);
+
+    device_name.join(&attributes);
+    appearance.join(&attributes);
+  }
+};
 
 class BBand {
   enum {PACKET_POOL_SIZE = 4};
@@ -321,7 +414,7 @@ class BBand {
   Pool<HCI::Connection, 3> hci_connection_pool;
   Ring<Packet> incoming_packets;
   Ring<HCI::Connection> remotes;
-  Server att_server;
+  ATT_Channel att_channel;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);

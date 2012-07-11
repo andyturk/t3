@@ -67,4 +67,8 @@ UUID::UUID(const char *s) {
   }
 }
 
+bool UUID::is_16bit() const {
+  return (memcmp(data, base.data, 12) == 0) && (memcmp(data + 14, base.data + 14, 2) == 0);
+}
+
 UUID UUID::base;
