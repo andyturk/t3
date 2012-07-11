@@ -2,6 +2,7 @@
 #include "buffer.h"
 #include "hal.h"
 #include "hci.h"
+#include "att.h"
 
 #include "utils/uartstdio.h"
 

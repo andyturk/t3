@@ -1,6 +1,9 @@
+#include "hci.h"
 #include "l2cap.h"
+#include "utils/uartstdio.h"
 
-namespace L2CAP {
+extern BBand pan1323;
+
   Ring<Channel> Channel::channels;
 
   Channel::Channel(uint16_t c) : channel_id(c) {
@@ -19,4 +22,8 @@ namespace L2CAP {
 
     return 0;
   }
-};
+
+  void Channel::receive(Packet *p) {
+    UARTprintf("received data for channel 0x%04x\n", channel_id);
+    pan1323.deallocate_packet(p);
+  }

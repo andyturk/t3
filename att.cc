@@ -1,9 +1,8 @@
 #include <cstring>
-#include "att.h"
 #include "utils/uartstdio.h"
+#include "hci.h"
 
-namespace GATT {
-  Characteristic::Characteristic(uint8_t p, ATT::AttributeBase *a) :
+  Characteristic::Characteristic(uint8_t p, AttributeBase *a) :
     properties(p),
     declaration_handle(0),
     attribute(a)
@@ -11,7 +10,7 @@ namespace GATT {
   }
 
   Service::Service(bool primary) :
-    type(primary ? PRIMARY_SERVICE : SECONDARY_SERVICE)
+    type(primary ? GATT::PRIMARY_SERVICE : GATT::SECONDARY_SERVICE)
   {
   }
 
@@ -29,7 +28,7 @@ namespace GATT {
     s.join(&services);
   }
 
-  void Server::att_packet_handler(Packet *p) {
+  void Server::receive(Packet *p) {
     uint8_t opcode;
 
     *p >> opcode;
@@ -76,11 +75,10 @@ namespace GATT {
 
   GAPService::GAPService(const char *s) :
     Service(true),
-    name(DEVICE_NAME, (void *) s, strlen(s)),
-    name_decl(Characteristic::READ, 0)
+    name(GATT::DEVICE_NAME, (void *) s, strlen(s)),
+    name_decl(GATT::READ, 0)
   {
   }
-};
 
 
 

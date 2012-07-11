@@ -311,14 +311,18 @@ void BBand::standard_packet_handler(Packet *p) {
   }
     
   case ACL_PACKET : {
-    uint16_t raw_handle, length;
-    *p >> raw_handle >> length;
+    p->skip(3*sizeof(uint16_t)); // acl handle, acl length, l2cap length
+    uint16_t cid;
 
-    uint16_t handle = raw_handle & 0x0fff;
-    uint8_t bc = (raw_handle >> 14) & 0x0003;
-    uint8_t pb = (raw_handle >> 12) & 0x0003;
+    *p >> cid;
+    Channel *channel = Channel::find(cid);
 
-    acl_packet_handler(handle, pb, bc, p);
+    if (channel) {
+      channel->receive(p);
+    } else {
+      UARTprintf("discarding ACL packet for unknown channel: 0x%04x\n", cid);
+      deallocate_packet(p);
+    }
     break;
   }
 
@@ -327,55 +331,6 @@ void BBand::standard_packet_handler(Packet *p) {
   default :
     UARTprintf("discarding unknown packet of type %d\n", packet_indicator);
     deallocate_packet(p);
-  }
-}
-
-void BBand::acl_packet_handler(uint16_t handle, uint8_t pb, uint8_t bc, Packet *p) {
-  UARTprintf("ACL data, handle = 0x%04x, pb = %d, bc = %d\n", handle, pb, bc);
-
-  l2cap_packet_handler(p);
-  acl_packet_pool.deallocate((HCI::ACLPacket *) p);
-}
-
-void BBand::l2cap_packet_handler(Packet *p) {
-  uint16_t cid, length;
-  *p >> length >> cid;
-
-  switch(cid) {
-  case L2CAP::ATTRIBUTE_CID :
-    att_packet_handler(p);
-    break;
-
-  default :
-    UARTprintf("unrecognized L2CAP CID: 0x%04x\n", cid);
-    break;
-  }
-}
-
-void BBand::att_packet_handler(Packet *p) {
-  uint8_t opcode;
-
-  *p >> opcode;
-
-  switch (opcode) {
-  case ATT::OPCODE_ERROR : {
-    uint16_t handle;
-    uint8_t error;
-
-    *p >> opcode >> handle >> error;
-    UARTprintf("ATT error for opcode: 0x%02x, handle: 0x%04x, error: 0x%02x\n", opcode, handle, error);
-    break;
-  }
-
-  case ATT::OPCODE_FIND_TYPE_BY_VALUE_REQUEST : {
-    uint16_t first_handle, last_handle, type;
-    *p >> first_handle >> last_handle >> type;
-    break;
-  }
-
-  default :
-    UARTprintf("unrecognized att opcode: 0x%02x\n", opcode);
-    break;
   }
 }
 

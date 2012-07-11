@@ -7,6 +7,7 @@
 #include "hal.h"
 #include "buffer.h"
 #include "ring.h"
+#include "uuid.h"
 #include "command_defs.h"
 
 extern const char hex_digits[16];
@@ -231,7 +232,79 @@ namespace HCI {
   };
 };
 
+class Channel : public Ring<Channel> {
+  static Ring<Channel> channels;
+
+ public:
+  const uint16_t channel_id;
+  uint16_t mtu;
+
+  Channel(uint16_t c);
+  ~Channel();
+
+  virtual void receive(HCI::Packet *p);
+  static Channel *find(uint16_t id);
+};
+
 using namespace HCI;
+
+  struct AttributeBase {
+    UUID type;
+    uint16_t handle;
+    void *_data;
+    uint16_t length;
+
+    AttributeBase(const UUID &t, void *d, uint16_t l) : type(t), _data(d), length(l) {}
+    AttributeBase(int16_t t, void *d, uint16_t l) : type(t), _data(d), length(l) {}
+  };
+
+  template<typename T>
+  class Attribute : public AttributeBase {
+    T data;
+
+  public:
+    Attribute(const UUID &u) : AttributeBase(u, &data, sizeof(data)) {}
+    Attribute(uint16_t u) : AttributeBase(u, &data, sizeof(data)) {}
+  };
+
+  struct Server;
+
+  struct Characteristic : public Ring<Characteristic> {
+    uint8_t properties;
+    uint16_t declaration_handle;
+    AttributeBase *attribute;
+    Characteristic(uint8_t p, AttributeBase *a);
+  };
+
+  struct Service : public Ring<Service> {
+    const uint16_t type;
+    uint16_t declaration_handle;
+    Ring<Service> includes;
+    Ring<Characteristic> characteristics;
+
+    Service(bool primary);
+    void add_to(Server &s);
+  };
+
+  class GAPService : public Service {
+    AttributeBase name;
+    Characteristic name_decl;
+
+  public:
+    GAPService(const char *name);
+  };
+
+  struct Server : public Channel {
+    uint16_t next_handle;
+    Ring<Service> services;
+    void add(Service &s);
+
+    Server() : Channel(L2CAP::ATTRIBUTE_CID) {}
+
+    void send(HCI::Packet *p);
+    HCI::Packet *get_packet();
+    virtual void receive(HCI::Packet *p);
+  };
 
 class BBand {
   enum {PACKET_POOL_SIZE = 4};
@@ -248,6 +321,7 @@ class BBand {
   Pool<HCI::Connection, 3> hci_connection_pool;
   Ring<Packet> incoming_packets;
   Ring<HCI::Connection> remotes;
+  Server att_server;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
@@ -257,9 +331,6 @@ class BBand {
 
   void fill_uart();
   void drain_uart();
-
-  void deallocate_packet(Packet *packet);
-  void send(Packet *p);
 
   // uart states
   void rx_new_packet();
@@ -292,4 +363,7 @@ class BBand {
   void initialize();
   void uart_interrupt_handler();
   void process_incoming_packets();
+
+  void deallocate_packet(Packet *packet);
+  void send(Packet *p);
 };
