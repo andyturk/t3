@@ -384,6 +384,7 @@ struct GATT_Service : public Attribute<uint16_t> {
   {
     changed._decl.properties = GATT::INDICATE | GATT::WRITE_WITHOUT_RESPONSE | GATT::READ;
   }
+  virtual uint16_t group_end() {return changed.handle;}
 };
 
 struct MyService : public Attribute<uint16_t> {
@@ -398,6 +399,8 @@ struct MyService : public Attribute<uint16_t> {
       char_3("00001234-0000-1000-8000-00805F9B34FB")
   {
   }
+
+  virtual uint16_t group_end() {return char_3.handle;}
 };
 
 struct GAP_Service : public Attribute<uint16_t> {
@@ -412,6 +415,7 @@ struct GAP_Service : public Attribute<uint16_t> {
     appearance = a;
     device_name = name;
   }
+  virtual uint16_t group_end() {return appearance.handle;}
 };
 
 /*

@@ -236,6 +236,21 @@ void BBand::default_event_handler(uint8_t event, Packet *p) {
     break;
   }
 
+  case EVENT_NUMBER_OF_COMPLETED_PACKETS : {
+    uint8_t number_of_handles;
+
+    *p >> number_of_handles;
+    uint16_t *connection_handle = (uint16_t *) (uint8_t *) *p;
+    p->skip(number_of_handles*sizeof(uint16_t));
+    uint8_t *num_of_completed_packets = (uint8_t *) *p;
+
+    for (uint8_t i=0; i < number_of_handles; ++i) {
+      UARTprintf("connection 0x%04x completed %d packets\n",
+                 connection_handle[i],
+                 num_of_completed_packets[i]);
+    }
+    break;
+  }
   default :
     UARTprintf("discarding event 0x%02x\n", event);
   }
