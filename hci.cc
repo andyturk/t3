@@ -19,6 +19,7 @@ void Packet::dump() {
 }
 
 uint16_t AttributeBase::next_handle = 0;
+AttributeBase *AttributeBase::all_handles[AttributeBase::MAX_ATTRIBUTES];
 
 int AttributeBase::compare(void *other, uint16_t len) {
   size_t shorter = length < len ? length : len;
@@ -34,9 +35,9 @@ BBand::BBand(UART &u, IOPin &s) :
   rx(0), rx_state(0),
   tx(0), 
   indicator_packet(indicator_packet_storage, sizeof(indicator_packet_storage)),
-  event_handler(&default_event_handler)
+  event_handler(&default_event_handler),
+  gap("Test Device")
 {
-  // gap_service.join(&att_server.services);
 }
 
 void BBand::drain_uart() {

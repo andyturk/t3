@@ -118,7 +118,7 @@ extern "C" {
 
       do {
         if (*x++ != *y++) return *--x - *--y;
-      } while (--len >= 0);
+      } while (--len > 0);
     }
     return 0;
   }

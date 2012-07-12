@@ -252,22 +252,45 @@ class Channel : public Ring<Channel> {
 
 using namespace HCI;
 
-struct AttributeBase : public Ring<AttributeBase> {
+class AttributeBase : public Ring<AttributeBase> {
+  enum {MAX_ATTRIBUTES = 20};
   static uint16_t next_handle;
+  static AttributeBase *all_handles[MAX_ATTRIBUTES];
 
+ public:
   UUID type;
   uint16_t handle;
   void *_data;
   uint16_t length;
 
-  AttributeBase(const UUID &t, void *d, uint16_t l) :
-  type(t), handle(++next_handle), _data(d), length(l) {}
-  AttributeBase(int16_t t, void *d, uint16_t l) :
-    type(t), handle(++next_handle), _data(d), length(l) {}
+ AttributeBase(const UUID &t, void *d, uint16_t l) :
+  type(t), handle(++next_handle), _data(d), length(l)
+  {
+    all_handles[handle] = this;
+  }
+ AttributeBase(int16_t t, void *d, uint16_t l) :
+    type(t), handle(++next_handle), _data(d), length(l)
+  {
+    all_handles[handle] = this;
+  }
 
+  static AttributeBase *get(uint16_t n) {assert(n < next_handle); return all_handles[n];}
+  static uint16_t find_by_type_value(uint16_t start, uint16_t type, void *value, uint16_t length) {
+    for(uint16_t i=start; i < next_handle; ++i) {
+      AttributeBase *attr = all_handles[i];
+
+      if (attr->type != type) continue;
+      if (length != attr->length) continue; // e.g., UUIDs could be either 2 or 16 bytes
+      if (memcmp(attr->_data, value, length)) continue;
+
+      return i;
+    }
+
+    return 0;
+  }
   int compare(void *data, uint16_t len);
   int compare(void *data, uint16_t len, uint16_t min_handle, uint16_t max_handle);
-  virtual uint16_t group_end_handle();
+  virtual uint16_t group_end();
 };
 
 template<typename T>
@@ -277,6 +300,8 @@ class Attribute : public AttributeBase {
  public:
   Attribute(const UUID &u) : AttributeBase(u, &data, sizeof(data)) {}
   Attribute(uint16_t u) : AttributeBase(u, &data, sizeof(data)) {}
+  Attribute(const UUID &u, const T &val) : AttributeBase(u, &data, sizeof(data)), data(val) {}
+  Attribute(uint16_t u, const T &val) : AttributeBase(u, &data, sizeof(data)), data(val) {}
 
   Attribute &operator=(const T &rhs) {data = rhs; return *this;};
 };
@@ -312,19 +337,22 @@ struct CharacteristicDecl : public AttributeBase {
     };
   } __attribute__ ((packed)) _decl ;
 
-  CharacteristicDecl(const UUID &uuid) :
-    AttributeBase(uuid, &_decl, sizeof(_decl))
+  CharacteristicDecl(uint16_t uuid) :
+    AttributeBase(GATT::CHARACTERISTIC, &_decl, sizeof(_decl))
   {
     _decl.properties = 0;
     _decl.handle = 0;
+    _decl.short_uuid = (uint16_t) uuid;
+    length = sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t);
+  }
 
-    if (uuid.is_16bit()) {
-      _decl.short_uuid = (uint16_t) uuid;
-      length = sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t);
-    } else {
-      memcpy(_decl.full_uuid, (const uint8_t *) uuid, sizeof(UUID));
-      length = sizeof(uint8_t) + sizeof(uint16_t) + sizeof(UUID);
-    }
+  CharacteristicDecl(const UUID &uuid) :
+    AttributeBase(GATT::CHARACTERISTIC, &_decl, sizeof(_decl))
+  {
+    _decl.properties = 0;
+    _decl.handle = 0;
+    memcpy(_decl.full_uuid, (const uint8_t *) uuid, sizeof(UUID));
+    length = sizeof(uint8_t) + sizeof(uint16_t) + sizeof(UUID);
   }
 };
 
@@ -337,36 +365,56 @@ struct Characteristic : public CharacteristicDecl {
   {
     _decl.handle = value.handle;
   }
+  Characteristic(uint16_t uuid) :
+    CharacteristicDecl(GATT::CHARACTERISTIC),
+    value(uuid)
+  {
+    _decl.handle = value.handle;
+  }
     Characteristic &operator=(const T &rhs) {value = rhs; return *this;}
 };
 
-struct MyService : public CharacteristicDecl {
-  UUID device_name_uuid;
-  UUID appearance_uuid;
 
-  Characteristic<const char *> device_name;
-  Characteristic<uint16_t> appearance;
+struct GATT_Service : public Attribute<uint16_t> {
+  CharacteristicDecl changed;
 
-  MyService() :
-    CharacteristicDecl(GATT::PRIMARY_SERVICE),
-      device_name_uuid(GATT::DEVICE_NAME),
-      appearance_uuid(GATT::APPEARANCE),
-
-      device_name(device_name_uuid),
-      appearance(appearance_uuid)
+  GATT_Service() :
+    Attribute<uint16_t>(GATT::PRIMARY_SERVICE, GATT::GENERIC_ATTRIBUTE_PROFILE),
+      changed(GATT::SERVICE_CHANGED)
   {
-    appearance = (uint16_t) 0;
-    device_name = "Happy Foobar";
+    changed._decl.properties = GATT::INDICATE | GATT::WRITE_WITHOUT_RESPONSE | GATT::READ;
   }
 };
 
-struct Service : public Ring<Service>, Attribute<uint16_t> {
-  Ring<Service> includes;
-  Ring<AttributeBase> attributes;
+struct MyService : public Attribute<uint16_t> {
+  Characteristic<char> char_1;
+  Characteristic<char> char_2;
+  Characteristic<char> char_3;
 
-  Service(uint16_t type) : Attribute<uint16_t>(type) {}
+  MyService() :
+    Attribute<uint16_t>(GATT::PRIMARY_SERVICE, 0xfff0),
+      char_1((uint16_t) 0xfff1),
+      char_2((uint16_t) 0xfff2),
+      char_3("00001234-0000-1000-8000-00805F9B34FB")
+  {
+  }
 };
 
+struct GAP_Service : public Attribute<uint16_t> {
+  Characteristic<const char *> device_name;
+  Characteristic<uint16_t> appearance;
+
+  GAP_Service(const char *name, uint16_t a = 0) :
+    Attribute<uint16_t>(GATT::PRIMARY_SERVICE, GATT::GENERIC_ACCESS_PROFILE),
+      device_name(GATT::DEVICE_NAME),
+      appearance(GATT::APPEARANCE)
+  {
+    appearance = a;
+    device_name = name;
+  }
+};
+
+/*
 struct Server : public Channel {
   uint16_t next_handle;
   Ring<Service> services;
@@ -378,26 +426,7 @@ struct Server : public Channel {
   HCI::Packet *get_packet();
   virtual void receive(HCI::Packet *p);
 };
-
-extern "C" unsigned int strlen(const char *);
-
-class GAP_Service : public Service {
-  Attribute<const char *> device_name;
-  Attribute<uint8_t> appearance;
-
-public:
-  GAP_Service() :
-    Service(GATT::PRIMARY_SERVICE),
-    device_name(GATT::DEVICE_NAME),
-    appearance(GATT::APPEARANCE)
-  {
-    device_name._data = (void *) "Fun Thing";
-    device_name.length = strlen((const char *) device_name._data);
-
-    device_name.join(&attributes);
-    appearance.join(&attributes);
-  }
-};
+*/
 
 class BBand {
   enum {PACKET_POOL_SIZE = 4};
@@ -421,6 +450,10 @@ class BBand {
 
   uint8_t command_packet_budget;
   BD_ADDR bd_addr;
+
+  GAP_Service gap;
+  GATT_Service gatt;
+  MyService my;
 
   void fill_uart();
   void drain_uart();

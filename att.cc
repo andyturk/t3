@@ -2,7 +2,7 @@
 #include "utils/uartstdio.h"
 #include "hci.h"
 
-uint16_t AttributeBase::group_end_handle() {
+uint16_t AttributeBase::group_end() {
   return handle;
 }
 
@@ -30,35 +30,32 @@ void ATT_Channel::find_by_type_value(Packet *p) {
   } else {
     *p << (uint8_t) ATT::OPCODE_FIND_TYPE_BY_VALUE_RESPONSE;
     uint16_t found_attribute_handle = 0, group_end_handle;
-    AttributeBase::Iterator i = attributes.begin();
-    AttributeBase *matched, *next;
 
-    while (i != attributes.end() &&
-           ((i->handle < first_handle) || (i->handle > last_handle) ||
-            type != i->type ||
-            i->compare(value, length))) ++i;
+    /*
+     * AttributeBase::find_by_type_value returns 0 when a handle can't be found.
+     * This is less than the lowest expected value of first_handle.
+     */
+    uint16_t h = AttributeBase::find_by_type_value(first_handle, short_type, value, length);
 
-    matched = i;
+    for (;;) {
+      if (h < first_handle || h > last_handle || (p->get_remaining() < 2*sizeof(uint16_t))) break;
 
-    while (matched != attributes.end() && p->get_remaining() >= 2*sizeof(uint16_t)) {
-      found_attribute_handle = matched->handle;
-      group_end_handle = matched->group_end_handle();
+      found_attribute_handle = h;
+      group_end_handle = AttributeBase::get(h)->group_end();
+      uint16_t next_h = AttributeBase::find_by_type_value(h+1, short_type, value, length);
 
-      while (i != attributes.end() &&
-             ((i->handle < first_handle) || (i->handle > last_handle) ||
-              type != i->type ||
-              i->compare(value, length))) ++i;
+      if (found_attribute_handle == group_end_handle) { // not a grouping attribute
+        if (next_h < first_handle || next_h > last_handle) group_end_handle = 0xffff;
+      }
 
-      next = i;
-
-      if (next == attributes.end()) group_end_handle = 0xffff;
       *p << found_attribute_handle << group_end_handle;
-      matched = next;
+      h = next_h;
     }
 
     if (found_attribute_handle == 0) {
       p->reset_l2cap();
-      *p << (uint8_t) ATT::OPCODE_ERROR << first_handle << (uint8_t) ATT::ATTRIBUTE_NOT_FOUND;
+      *p << (uint8_t) ATT::OPCODE_ERROR << (uint8_t) ATT::OPCODE_FIND_TYPE_BY_VALUE_REQUEST;
+      *p << first_handle << (uint8_t) ATT::ATTRIBUTE_NOT_FOUND;
     }
   }
 

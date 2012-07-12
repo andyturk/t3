@@ -1,14 +1,18 @@
 #include <stddef.h>
 
+#include "cc_stubs.h"
 #include "uuid.h"
 
-// the byte order here needs to be reversed
-UUID::UUID() :
-  data({0xfb, 0x34, 0x9b, 0x5f,
-        0x80, 0x00, 0x00, 0x80,
-        0x00, 0x10, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00})
-{}
+const uint8_t bluetooth_uuid[16] = {
+  0xfb, 0x34, 0x9b, 0x5f,
+  0x80, 0x00, 0x00, 0x80,
+  0x00, 0x10, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00
+};
+
+UUID::UUID() {
+  memcpy(data, bluetooth_uuid, sizeof(bluetooth_uuid));
+}
 
 static int from_hex(char c) {
   if (c >= '0' && c <= '9') return c - '0';
@@ -17,14 +21,12 @@ static int from_hex(char c) {
   return -1;
 }
 
-extern "C" int memcmp(const void *x, const void *y, size_t len);
-
 int UUID::compare(const UUID &u1, const UUID &u2) {
   return memcmp(u1.data, u2.data, sizeof(UUID::data));
 }
 
 UUID::UUID(uint16_t shortened) {
-  for (unsigned int i=0; i < sizeof(data); ++i) data[i] = base.data[i];
+  memcpy(data, bluetooth_uuid, sizeof(bluetooth_uuid));
   data[13] = (uint8_t) (shortened >> 8);
   data[14] = (uint8_t) (shortened & 0x00ff);
 }
@@ -68,7 +70,7 @@ UUID::UUID(const char *s) {
 }
 
 bool UUID::is_16bit() const {
-  return (memcmp(data, base.data, 12) == 0) && (memcmp(data + 14, base.data + 14, 2) == 0);
+  return !memcmp(data, base.data, 12) && !memcmp(data + 14, base.data + 14, 2);
 }
 
 UUID UUID::base;
