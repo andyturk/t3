@@ -4,6 +4,41 @@
 #include "utils/uartstdio.h"
 #include "att.h"
 
+AttributeBase::AttributeBase(const UUID &t, void *d, uint16_t l) :
+  type(t), handle(++next_handle), _data(d), length(l)
+{
+  all_handles[handle] = this;
+}
+
+AttributeBase::AttributeBase(int16_t t, void *d, uint16_t l) :
+  type(t), handle(++next_handle), _data(d), length(l)
+{
+  all_handles[handle] = this;
+}
+
+uint16_t AttributeBase::find_by_type_value(uint16_t start, uint16_t type, void *value, uint16_t length) {
+  assert(start > 0);
+  for (uint16_t i=start; i < next_handle; ++i) {
+    AttributeBase *attr = all_handles[i];
+
+    if (attr->type != type) continue;
+    if (length != attr->length) continue; // e.g., UUIDs could be either 2 or 16 bytes
+    if (memcmp(attr->_data, value, length)) continue;
+
+    return i;
+  }
+
+  return 0;
+}
+
+uint16_t AttributeBase::find_by_type(uint16_t start, const UUID &type) {
+  assert(start > 0);
+  for (uint16_t i=start; i < next_handle; ++i) {
+    if (all_handles[i]->type == type) return i;
+  }
+  return 0;
+}
+
 uint16_t AttributeBase::group_end() {
   return handle;
 }

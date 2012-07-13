@@ -29,8 +29,7 @@ BBand::BBand(UART &u, IOPin &s) :
                  (PoolBase<HCI::Connection> *) &hci_connection_pool),
   uart(u),
   shutdown(s),
-  event_handler(&default_event_handler),
-  gap("Test Device")
+  event_handler(&default_event_handler)
 {
 }
 
