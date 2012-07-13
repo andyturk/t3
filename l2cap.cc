@@ -25,7 +25,7 @@ Channel *Channel::find(uint16_t id) {
 
 void Channel::receive(Packet *p) {
   UARTprintf("received data for channel 0x%04x\n", channel_id);
-  pan1323.deallocate_packet(p);
+  p->deallocate();
 }
 
 void Channel::send(Packet *p) {

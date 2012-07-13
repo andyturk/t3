@@ -10,15 +10,18 @@ const uint8_t bluetooth_uuid[16] = {
   0x00, 0x00, 0x00, 0x00
 };
 
-UUID::UUID() {
-  memcpy(data, bluetooth_uuid, sizeof(bluetooth_uuid));
-}
-
 static int from_hex(char c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
   if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
   return -1;
+}
+
+UUID &UUID::operator=(uint16_t other) {
+  memcpy(data, bluetooth_uuid, sizeof(data));
+  data[13] = (uint8_t) (other >> 8);
+  data[14] = (uint8_t) (other & 0x00ff);
+  return *this;
 }
 
 int UUID::compare(const UUID &u1, const UUID &u2) {
@@ -70,7 +73,5 @@ UUID::UUID(const char *s) {
 }
 
 bool UUID::is_16bit() const {
-  return !memcmp(data, base.data, 12) && !memcmp(data + 14, base.data + 14, 2);
+  return !memcmp(data, bluetooth_uuid, 12) && !memcmp(data + 14, bluetooth_uuid + 14, 2);
 }
-
-UUID UUID::base;

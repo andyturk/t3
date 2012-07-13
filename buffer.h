@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "assert.h"
 
+#if 0
 template<class T>
 class FlipBuffer {
  protected:
@@ -32,7 +33,7 @@ class FlipBuffer {
   }
 
   void set_limit(size_t l) {limit = l;}
-  void reset() {position = 0; limit = capacity; mark = NO_MARK;}
+  void reset(size_t lim=0) {position = 0; limit = (lim == 0) ? capacity : lim; mark = NO_MARK;}
   void flip() {limit = position; position = 0;}
   void unflip() {position = limit; limit = capacity;}
   void rewind() {position = 0;}
@@ -46,6 +47,7 @@ class FlipBuffer {
   T peek(int offset) {return storage[position + offset];}
   void put(const T x) {assert(position < limit); storage[position++] = x;}
 };
+#endif
 
 template<class T>
 class RingBuffer {
