@@ -3,10 +3,9 @@
 #include <stdint.h>
 #include "cc_stubs.h"
 
-class UUID {
+struct UUID {
   uint8_t data[16];
 
- public:
   UUID() {}
   UUID(const char *s); // e.g., UUID("00001234-0000-1000-8000-00805F9B34FB")
   UUID(uint16_t shortened);

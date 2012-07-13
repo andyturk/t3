@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "utils/uartstdio.h"
 #include "assert.h"
 #include "bluetooth_constants.h"
 #include "bd_addr.h"
@@ -45,9 +46,14 @@ class FlipBuffer {
 
 class Packet : public Ring<Packet>, public FlipBuffer {
  public:
+  const char *title;
   Ring<Packet> *free_packets;
 
-  Packet(uint8_t *buf, uint16_t len) : FlipBuffer(buf, len), free_packets(0) {}
+  Packet(uint8_t *buf, uint16_t len) :
+    FlipBuffer(buf, len),
+    title(0),
+    free_packets(0)
+  {}
   void deallocate() {assert(free_packets != 0); join(free_packets);}
 
   Packet &read(uint8_t *p, uint16_t len) {
@@ -117,6 +123,12 @@ class Packet : public Ring<Packet>, public FlipBuffer {
     }
 
     seek(0);
+
+    if (title) {
+      UARTprintf("%s: ", title);
+      dump();
+      title = 0;
+    }
   }
 
   enum {
@@ -134,16 +146,23 @@ class Packet : public Ring<Packet>, public FlipBuffer {
   Packet &l2cap(uint16_t handle, uint16_t cid) { return acl(handle, 0x02, 0x00) << (uint16_t) 0 << cid;}
 
   /*
-   * l2cap(uint16_t) assumes the packet already contains a fully formatted
-   * L2CAP packet. The packet is reset, but the L2CAP framing is preserved
-   * in place, including the source/destination handle and the channel ID.
-   * The position is left at the first L2CAP payload byte. Length fields are
-   * not modified here and must be set (via prepare_for_tx) before the packet
+   * The following two methods re-use existing L2CAP framing information.
+   * The packet is reset, but the L2CAP framing is either preserved
+   * in place or copied from another packet. This includes the
+   * source/destination handle and the channel ID. The position is left
+   * at the first L2CAP payload byte. Length fields in the framing are not
+   * modified here and must be set (via prepare_for_tx) before the packet
    * can be sent.
    */
   Packet &l2cap(uint16_t lim=0) {reset(lim); seek(L2CAP_HEADER_SIZE); return *this;}
+  Packet &l2cap(Packet *other, uint16_t lim=0) {reset(lim); write(other->storage, L2CAP_HEADER_SIZE); return *this;}
 
-  void dump();
+  void dump() {
+    for (unsigned int i=position; i < limit; ++i) {
+      UARTprintf("%02x ", storage[i]);
+    }
+    UARTprintf("\n");
+  }
 };
 
 template<unsigned int size>

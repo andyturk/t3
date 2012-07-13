@@ -6,9 +6,12 @@ extern BBand pan1323;
 
 Ring<Channel> Channel::channels;
 
-Channel::Channel(uint16_t c) : channel_id(c) {
+Channel::Channel(uint16_t cid, HostController &hc) :
+  controller(hc),
+  channel_id(cid)
+{
   join(&channels);
-  assert(find(c) == this);
+  assert(find(cid) == this);
 }
 
 Channel::~Channel() {

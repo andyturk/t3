@@ -22,21 +22,6 @@ namespace HCI {
   };
 };
 
-class Channel : public Ring<Channel> {
-  static Ring<Channel> channels;
-
- public:
-  const uint16_t channel_id;
-  uint16_t mtu;
-
-  Channel(uint16_t c);
-  ~Channel();
-
-  virtual void receive(Packet *p);
-  virtual void send(Packet *p);
-  static Channel *find(uint16_t id);
-};
-
 using namespace HCI;
 
 class AttributeBase : public Ring<AttributeBase> {
@@ -108,19 +93,6 @@ class Attribute<const char *> : public AttributeBase {
   Attribute(uint16_t u) : AttributeBase(u, 0, 0) {}
 
   Attribute &operator=(const char *rhs) {_data = (void *) rhs; length = strlen(rhs); return *this;};
-};
-
-class ATT_Channel : public Channel {
-  void find_by_type_value(Packet *p);
-  void read_by_type(Packet *p);
-
-  Ring<AttributeBase> attributes;
-  uint16_t att_mtu;
-  
- public:
-  ATT_Channel();
-  void receive(Packet *p);
-  void add(AttributeBase &attr) { attr.join(&attributes); }
 };
 
 struct CharacteristicDecl : public AttributeBase {
@@ -242,6 +214,7 @@ class HostController {
   }
 
   friend class H4Tranceiver;
+  friend class ATT_Channel;
 };
 
 
@@ -251,7 +224,6 @@ class BBand : public HostController {
   PacketPool<259, 4> command_packet_pool;
   PacketPool<1000, 4> acl_packet_pool;
   Pool<HCI::Connection, 3> hci_connection_pool;
-  ATT_Channel att_channel;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);

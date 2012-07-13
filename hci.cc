@@ -12,12 +12,6 @@ const char hex_digits[16] = {
   '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 };
 
-void Packet::dump() {
-  for (unsigned int i=position; i < limit; ++i) {
-    UARTprintf("%02x ", storage[i]);
-  }
-}
-
 uint16_t AttributeBase::next_handle = 0;
 AttributeBase *AttributeBase::all_handles[AttributeBase::MAX_ATTRIBUTES];
 

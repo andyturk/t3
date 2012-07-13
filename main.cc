@@ -4,6 +4,7 @@
 #include "hci.h"
 #include "att.h"
 #include "h4.h"
+#include "att.h"
 
 #include "utils/uartstdio.h"
 
@@ -14,6 +15,7 @@ UART1 uart1;
 BBand pan1323(uart1, pc4);
 SysTick systick(1000);
 H4Tranceiver h4(&uart1, &pan1323);
+ATT_Channel att_channel(pan1323);
 
 extern "C" int main() {
   CPU::set_clock_rate_50MHz();
