@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstring>
+
 #include "assert.h"
-#include "hci.h"
+#include "bluetooth_constants.h"
 #include "bd_addr.h"
 #include "pool.h"
 
@@ -10,33 +12,33 @@ using namespace HCI;
 class FlipBuffer {
  protected:
   uint8_t *storage;
-  size_t capacity, position, limit;
+  uint16_t capacity, position, limit;
 
  public:
   FlipBuffer() : storage(0), capacity(0), position(0), limit(0) {}
-  FlipBuffer(uint8_t *s, size_t c) : storage(s), capacity(c), position(0), limit(c) {}
-  size_t get_capacity() const {return capacity;}
-  size_t get_position() const {return position;}
-  size_t get_limit() const {return limit;}
-  size_t get_remaining() const {return limit - position;}
+  FlipBuffer(uint8_t *s, uint16_t c) : storage(s), capacity(c), position(0), limit(c) {}
+  uint16_t get_capacity() const {return capacity;}
+  uint16_t get_position() const {return position;}
+  uint16_t get_limit() const {return limit;}
+  uint16_t get_remaining() const {return limit - position;}
   uint8_t *ptr() {return storage + position;}
 
-  void initialize(uint8_t *s, size_t c) {
+  void initialize(uint8_t *s, uint16_t c) {
     storage = s;
     limit = capacity = c;
     position = 0;
   }
 
-  void set_limit(size_t l) {limit = l;}
-  void reset(size_t lim=0) {position = 0; limit = (lim == 0) ? capacity : lim;}
+  void set_limit(uint16_t l) {limit = l;}
+  void reset(uint16_t lim=0) {position = 0; limit = (lim == 0) ? capacity : lim;}
   void flip() {limit = position; position = 0;}
   void unflip() {position = limit; limit = capacity;}
   void rewind() {position = 0;}
-  void seek(size_t p) {position = p;}
+  void seek(uint16_t p) {position = p;}
   void skip(int offset) {position += offset;}
   
   uint8_t get() {return storage[position++];}
-  uint8_t get(size_t pos) {return storage[pos];}
+  uint8_t get(uint16_t pos) {return storage[pos];}
   uint8_t peek(int offset) {return storage[position + offset];}
   void put(const uint8_t x) {assert(position < limit); storage[position++] = x;}
 };
@@ -45,17 +47,17 @@ class Packet : public Ring<Packet>, public FlipBuffer {
  public:
   Ring<Packet> *free_packets;
 
-  Packet(uint8_t *buf, size_t len) : FlipBuffer(buf, len), free_packets(0) {}
+  Packet(uint8_t *buf, uint16_t len) : FlipBuffer(buf, len), free_packets(0) {}
   void deallocate() {assert(free_packets != 0); join(free_packets);}
 
-  Packet &read(uint8_t *p, size_t len) {
+  Packet &read(uint8_t *p, uint16_t len) {
     assert(position + len <= limit);
     memcpy(p, storage + position, len);
     position += len;
     return *this;
   }
 
-  Packet &write(const uint8_t *p, size_t len) {
+  Packet &write(const uint8_t *p, uint16_t len) {
     assert(position + len <= limit);
     memcpy(storage + position, p, len);
     position += len;

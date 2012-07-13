@@ -1,20 +1,15 @@
 #pragma once
 
+#include <stdint.h>
 #include "ring.h"
 
-template<class T, unsigned int size>
-  class Pool {
- protected:
-  T pool[size];
-  Ring<T> available;
-
+template<class T>
+class PoolBase {
  public:
-  Pool() {
-    for (unsigned int i=0; i < size; ++i) {
-      Ring<T> *p = (Ring<T> *) (pool + i);
-      p->join(&available);
-    }
-  }
+  Ring<T> available;
+  const uint32_t capacity;
+
+  PoolBase(uint32_t cap) : capacity(cap) {}
 
   T *allocate() {
     T *p = available.begin();
@@ -35,6 +30,18 @@ template<class T, unsigned int size>
     ((Ring<T> *) p)->join(&available);
     __asm("cpsie i");
   }
+};
 
-  size_t capacity() const {return size;}
+template<class T, unsigned int size>
+class Pool : public PoolBase<T> {
+ protected:
+  T pool[size];
+
+ public:
+ Pool() : PoolBase<T>(size) {
+    for (unsigned int i=0; i < size; ++i) {
+      Ring<T> *p = (Ring<T> *) (pool + i);
+      p->join(&this->available);
+    }
+  }
 };

@@ -3,6 +3,7 @@
 #include "hal.h"
 #include "hci.h"
 #include "att.h"
+#include "h4.h"
 
 #include "utils/uartstdio.h"
 
@@ -12,6 +13,7 @@ UART0 uart0;
 UART1 uart1;
 BBand pan1323(uart1, pc4);
 SysTick systick(1000);
+H4Tranceiver h4(&uart1, &pan1323);
 
 extern "C" int main() {
   CPU::set_clock_rate_50MHz();
@@ -42,6 +44,7 @@ extern "C" int main() {
 }
 
 extern "C" void __attribute__ ((isr)) uart_1_handler() {
-  pan1323.uart_interrupt_handler();
+  h4.uart_interrupt();
+  //pan1323.uart_interrupt_handler();
 }
 

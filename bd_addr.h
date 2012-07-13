@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 extern const char hex_digits[16];
 
 struct BD_ADDR {

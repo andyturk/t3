@@ -2,7 +2,7 @@
 #include "att.h"
 #include "l2cap.h"
 #include "cc_stubs.h"
-
+#include "h4.h"
 #include "utils/uartstdio.h"
 
 using namespace HCI;
@@ -30,59 +30,19 @@ int AttributeBase::compare(void *other, uint16_t len) {
 }
 
 BBand::BBand(UART &u, IOPin &s) :
+  HostController((PoolBase<Packet> *) &command_packet_pool,
+                 (PoolBase<Packet> *) &acl_packet_pool,
+                 (PoolBase<HCI::Connection> *) &hci_connection_pool),
   uart(u),
   shutdown(s),
-  rx(0), rx_state(0),
-  tx(0), 
-  indicator_packet(indicator_packet_storage, sizeof(indicator_packet_storage)),
   event_handler(&default_event_handler),
   gap("Test Device")
 {
 }
 
-void BBand::drain_uart() {
-  assert(rx == 0 || rx->get_remaining() > 0);
-
-  while (rx && (rx->get_remaining() > 0) && uart.can_read()) {
-    uint8_t byte;
-    uart.read(&byte, 1);
-    rx->put(byte);
-    if (rx->get_remaining() == 0) rx_state(this);
-  }
-}
-
-void BBand::fill_uart() {
-  while (tx && (tx->get_remaining() > 0) && uart.can_write()) {
-    uint8_t byte = tx->get();
-    uart.write(&byte, 1);
-    if (tx->get_remaining() == 0) {
-      uart.set_interrupt_enable(false);
-      tx->deallocate();
-      tx = 0;
-      uart.set_interrupt_enable(true);
-    }
-  }
-
-  if (tx->get_remaining() > 0) {
-    uart.set_interrupt_sources(UART::RX | UART::TX | UART::ERROR);
-  }
-}
-
-void BBand::uart_interrupt_handler() {
-  uint32_t cause = uart.clear_interrupt_cause(UART::RX | UART::TX | UART::ERROR);
-
-  assert(!(cause & UART::ERROR));
-
-  if (cause & UART::TX) fill_uart();
-  if (cause & UART::RX) drain_uart();
-
-  cause = UART::RX | UART::ERROR;
-  // enable the tx interrupt if there's more data in the buffer
-  if (tx && tx->get_remaining() > 0) cause |= UART::TX;
-  uart.set_interrupt_sources(cause);
-}
-
 void BBand::initialize() {
+  extern H4Tranceiver h4;
+
   shutdown.set_value(0); // assert SHUTDOWN
   uart.set_enable(false);
   uart.set_fifo_enable(false);
@@ -90,89 +50,24 @@ void BBand::initialize() {
   uart.set_baud(115200);
   uart.set_enable(true);
 
-  rx_new_packet();
+  h4.reset();
 
   uart.set_interrupt_sources(UART::RX | UART::ERROR);
-
-  tx = command_packet_pool.allocate();
-  assert(tx != 0);
-
   command_complete_handler = &cold_boot;
-
-  cold_boot(0, tx);
 
   shutdown.set_value(1); // clear SHUTDOWN
   uart.set_interrupt_enable(true);
 
   CPU::delay(150); // wait 150 msec
-  fill_uart();
+  cold_boot(0, 0);
 }
 
-void BBand::rx_new_packet() {
-  indicator_packet.reset();
-  indicator_packet.set_limit(1);
-  rx = &indicator_packet;
-  rx_state = &rx_packet_indicator;
-}
-
-void BBand::rx_packet_indicator() {
-  uint8_t ind = indicator_packet.peek(-1);
-
-  switch (ind) {
-  case HCI::EVENT_PACKET :
-    rx = command_packet_pool.allocate();
-    assert(rx != 0);
-
-    rx->set_limit(1+1+1); // indicator, event code, param length
-    rx->put(ind);
-    rx_state = &rx_event_header;
-    break;
-
-  case HCI::ACL_PACKET :
-    rx = acl_packet_pool.allocate();
-    assert(rx != 0);
-
-    rx->set_limit(1+4);
-    rx->put(ind);
-    rx_state = &rx_acl_header;
-    break;
-
-  case HCI::COMMAND_PACKET :
-  case HCI::SYNCHRONOUS_DATA_PACKET :
-  default :
-    assert(false);
-  }
-}
-
-void BBand::rx_acl_header() {
-  uint16_t length = (rx->peek(-1) << 8) + (rx->peek(-2));
-  rx->set_limit(1+4+length);
-  rx_state = &rx_queue_received_packet;
-}
-
-void BBand::rx_event_header() {
-  uint8_t param_length = rx->peek(-1);
-
-  if (param_length > 0) {
-    rx->set_limit(1+1+1 + param_length);
-    rx_state = &rx_queue_received_packet;
-  } else {
-    // there are no params, so just chain to the next state
-    rx_queue_received_packet();
-  }
-}
-
-void BBand::rx_queue_received_packet() {
-  // assert that we're handling the uart interrupt so we won't
-  // be interrupted
-
-  if (uart.can_read()) {
-    UARTprintf("warning: UART fifo not empty after received packet\n");
-  }
-
-  rx->flip();
-  rx->join(&incoming_packets);
-  rx_new_packet();
+void HostController::send(Packet *p) {
+  extern H4Tranceiver h4;
+  assert(p != 0);
+  p->prepare_for_tx();
+  p->join(&sent);
+  h4.fill_uart();
 }
 
 void BBand::process_incoming_packets() {
@@ -192,13 +87,6 @@ void BBand::process_incoming_packets() {
 
     if (p) standard_packet_handler(p);
   } while (p);
-}
-
-void BBand::send(Packet *p) {
-  assert(tx == 0);
-  p->prepare_for_tx();
-  tx = p;
-  fill_uart();
 }
 
 void BBand::default_event_handler(uint8_t event, Packet *p) {
@@ -350,7 +238,7 @@ void BBand::standard_packet_handler(Packet *p) {
 }
 
 void BBand::cold_boot(uint16_t opcode, Packet *p) {
-  if (opcode != 0) {
+  if (p != 0) {
     uint8_t status = p->get();
     assert(status == SUCCESS);
   }
@@ -361,11 +249,9 @@ void BBand::cold_boot(uint16_t opcode, Packet *p) {
     // format the tx packet and set p=0 to prevent it from
     // being sent at this time. Later on, the calling code will
     // send the contents of the tx buffer through the uart.
-    tx->hci(OPCODE_RESET).prepare_for_tx();
-    //*tx << OPCODE_RESET;
-    //tx->prepare_for_tx();
-    p = 0;
-
+    assert(p == 0);
+    p = command_packets->allocate();
+    p->hci(OPCODE_RESET);
     break;
 
   case OPCODE_RESET :

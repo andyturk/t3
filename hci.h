@@ -17,20 +17,6 @@
 extern const char hex_digits[16];
 
 namespace HCI {
-  class CommandPacket : public Packet {
-    uint8_t storage[259];
-
-  public:
-  CommandPacket() : Packet(storage, sizeof(storage)) {}
-  };
-
-  class ACLPacket : public Packet {
-    uint8_t storage[1000];
-  public:
-  ACLPacket() : Packet(storage, sizeof(storage)) {}
-  };
-
-
   class Connection : public Ring<Connection> {
     uint16_t handle;
   };
@@ -228,42 +214,51 @@ struct GAP_Service : public Attribute<uint16_t> {
   virtual uint16_t group_end() {return appearance.handle;}
 };
 
-class BBand {
-  enum {PACKET_POOL_SIZE = 4};
+class HostController {
+ protected:
+  PoolBase<Packet> *command_packets;
+  PoolBase<Packet> *acl_packets;
+  PoolBase<Connection> *connections;
 
+  Ring<Packet> incoming_packets;
+  Ring<Packet> sent;
+  Ring<Connection> remotes;
+  uint8_t command_packet_budget;
+
+ public:
+  BD_ADDR bd_addr;
+
+  HostController(PoolBase<Packet> *cmd, PoolBase<Packet> *acl, PoolBase<Connection> *conn) :
+    command_packets(cmd),
+    acl_packets(acl),
+    connections(conn)
+  {}
+
+  virtual void initialize() {}
+  virtual void periodic(uint32_t msec) {}
+  virtual void send(Packet *p);
+  virtual void receive(Packet *p) {
+    p->join(&incoming_packets);
+  }
+
+  friend class H4Tranceiver;
+};
+
+
+class BBand : public HostController {
   UART &uart;
   IOPin &shutdown;
-  Packet *rx;
-  void (*rx_state)(BBand *);
-  Packet *tx;
-  uint8_t indicator_packet_storage[1];
-  Packet indicator_packet;
   PacketPool<259, 4> command_packet_pool;
   PacketPool<1000, 4> acl_packet_pool;
   Pool<HCI::Connection, 3> hci_connection_pool;
-  Ring<Packet> incoming_packets;
-  Ring<HCI::Connection> remotes;
   ATT_Channel att_channel;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
 
-  uint8_t command_packet_budget;
-  BD_ADDR bd_addr;
-
   GAP_Service gap;
   GATT_Service gatt;
   MyService my;
-
-  void fill_uart();
-  void drain_uart();
-
-  // uart states
-  void rx_new_packet();
-  void rx_packet_indicator();
-  void rx_event_header();
-  void rx_acl_header();
-  void rx_queue_received_packet();
 
   // initialization states
   void cold_boot(uint16_t opcode, Packet *p);
@@ -287,8 +282,5 @@ class BBand {
  public:
   BBand(UART &u, IOPin &s);
   void initialize();
-  void uart_interrupt_handler();
   void process_incoming_packets();
-
-  void send(Packet *p);
 };

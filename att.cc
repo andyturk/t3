@@ -105,8 +105,8 @@ void ATT_Channel::read_by_type(Packet *p) {
   uint8_t &attribute_handle_pair_length = *(uint8_t *) *p;
   *p << (uint8_t) 0; // placeholder
 
-  unsigned int attr_length = 0;
-  unsigned int attr_length_as_written = 0;
+  uint16_t attr_length = 0;
+  uint16_t attr_length_as_written = 0;
 
   /*
    * AttributeBase::find_by_type returns 0 when a handle can't be found.
