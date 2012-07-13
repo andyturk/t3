@@ -19,6 +19,23 @@ H4Tranceiver h4(&uart1, &pan1323);
 ATT_Channel att_channel(pan1323);
 GAP_Service gap("Test Dev 1");
 GATT_Service gatt;
+
+struct MyService : public Attribute<uint16_t> {
+  Characteristic<char> char_1;
+  Characteristic<char> char_2;
+  Characteristic<char> char_3;
+
+  MyService() :
+    Attribute<uint16_t>(GATT::PRIMARY_SERVICE, 0xfff0),
+      char_1((uint16_t) 0xfff1),
+      char_2((uint16_t) 0xfff2),
+      char_3("00001234-0000-1000-8000-00805F9B34FB")
+  {
+  }
+
+  virtual uint16_t group_end() {return char_3.handle;}
+};
+
 MyService my;
 
 extern "C" int main() {
