@@ -20,7 +20,7 @@ static int from_hex(char c) {
 UUID &UUID::operator=(uint16_t other) {
   memcpy(data, bluetooth_uuid, sizeof(data));
   data[13] = (uint8_t) (other >> 8);
-  data[14] = (uint8_t) (other & 0x00ff);
+  data[12] = (uint8_t) (other & 0x00ff);
   return *this;
 }
 
@@ -31,7 +31,7 @@ int UUID::compare(const UUID &u1, const UUID &u2) {
 UUID::UUID(uint16_t shortened) {
   memcpy(data, bluetooth_uuid, sizeof(bluetooth_uuid));
   data[13] = (uint8_t) (shortened >> 8);
-  data[14] = (uint8_t) (shortened & 0x00ff);
+  data[12] = (uint8_t) (shortened & 0x00ff);
 }
 
 UUID::UUID(const UUID &other) {
@@ -74,4 +74,24 @@ UUID::UUID(const char *s) {
 
 bool UUID::is_16bit() const {
   return !memcmp(data, bluetooth_uuid, 12) && !memcmp(data + 14, bluetooth_uuid + 14, 2);
+}
+
+extern const char hex_digits[16];
+
+void to_hex(char *dst, uint8_t byte) {
+  dst[0] = hex_digits[byte >> 4];
+  dst[1] = hex_digits[byte & 0x0f];
+}
+
+const char *UUID::pretty_print() {
+  static char buffer[40];
+  char *p = buffer;
+
+  for (int i=15; i >= 12; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
+  for (int i=11; i >= 10; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
+  for (int i= 9; i >=  8; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
+  for (int i= 7; i >=  6; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
+  for (int i= 5; i >=  0; --i, p += 2) to_hex(p, data[i]);
+
+  return buffer;
 }

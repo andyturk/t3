@@ -14,12 +14,13 @@ struct UUID {
   bool is_16bit() const;
   UUID &operator=(const uint8_t *other) {memcpy(data, other, sizeof(data)); return *this;}
   UUID &operator=(uint16_t other);
-  operator uint16_t() const { return data[14] + (data[13] << 8); }
+  operator uint16_t() const { return data[12] + (data[13] << 8); }
   operator uint8_t const *() const { return data; }
   bool operator==(uint16_t other) const {return is_16bit() && (other == (uint16_t) *this);}
   bool operator!=(uint16_t other) const {return !(*this == other);}
   bool operator==(const UUID &other) const {return 0==compare(*this, other);}
   bool operator!=(const UUID &other) const {return !(*this == other);}
+  const char *pretty_print();
 
   static int compare(const UUID &u1, const UUID &u2);
 };
