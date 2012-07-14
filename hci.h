@@ -68,8 +68,9 @@ class BBand : public HostController {
   // initialization states
   void cold_boot(uint16_t opcode, Packet *p);
   void upload_patch(uint16_t opcode, Packet *p);
-  void warm_boot(uint16_t, Packet *p);
-
+  void warm_boot(uint16_t opcode, Packet *p);
+  void normal_operation(uint16_t opcode, Packet *p);
+  
   void standard_packet_handler(Packet *p);
   void default_event_handler(uint8_t event, Packet *p);
   void acl_packet_handler(uint16_t handle, uint8_t pb, uint8_t bc, Packet *p);

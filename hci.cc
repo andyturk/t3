@@ -12,6 +12,8 @@ const char hex_digits[16] = {
   '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 };
 
+char BD_ADDR::pp_buf[24];
+
 uint16_t AttributeBase::next_handle = 0;
 AttributeBase *AttributeBase::all_handles[AttributeBase::MAX_ATTRIBUTES];
 
@@ -92,7 +94,10 @@ void BBand::default_event_handler(uint8_t event, Packet *p) {
     handle &= 0x0fff;
 
     printf("disconnected 0x%04x (with status: 0x%02x) because 0x%02x\n", handle, status, reason);
-    break;
+    printf("re-enabling LE advertising\n");
+    p->hci(OPCODE_LE_SET_ADVERTISE_ENABLE) << (uint8_t) 0x01;
+    send(p);
+    return;
   }
     
   case EVENT_LE_META_EVENT : {
@@ -137,7 +142,6 @@ void BBand::le_event_handler(uint8_t subevent, Packet *p) {
     *p >> conn_interval >> conn_latency;
     *p >> supervision_timeout >> master_clock_accuracy;
 
-    char buf[BD_ADDR::PP_BUF_LEN];
     const char *type;
 
     switch (peer_address_type) {
@@ -170,9 +174,8 @@ void BBand::le_event_handler(uint8_t subevent, Packet *p) {
       break;
     }
 
-    peer_address.pretty_print(buf);
-
-    printf("connection to %s completed with status %d\n", buf, status);
+    const char *addr = peer_address.pretty_print();
+    printf("connection to %s completed with status %d\n", addr, status);
     printf("  handle = 0x%04x, addr_type = %s\n", connection_handle, type);
     printf("  role = %s, interval = %d, latency = %d, timeout = %d\n", role_name, conn_interval, conn_latency, supervision_timeout);
     printf("  clock_accuracy = %d\n", master_clock_accuracy);
@@ -214,6 +217,7 @@ void BBand::standard_packet_handler(Packet *p) {
     Channel *channel = Channel::find(cid);
 
     if (channel) {
+      printf("ACL packet for channel 0x%04x\n", cid);
       channel->receive(p);
     } else {
       printf("discarding ACL packet for unknown channel: 0x%04x\n", cid);
@@ -333,6 +337,11 @@ const uint8_t warm_boot_patch[] = {
   0x01, I2(OPCODE_LE_SET_ADVERTISE_ENABLE), 1, 0x01,
 };
 */
+
+void BBand::normal_operation(uint16_t opcode, Packet *p) {
+  printf("OK 0x%04x\n", opcode);
+  p->deallocate();
+}
 
 void BBand::warm_boot(uint16_t opcode, Packet *p) {
   assert(!uart.can_read());
@@ -560,6 +569,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
 
   case OPCODE_LE_SET_ADVERTISE_ENABLE :
     printf("warm boot finished\n");
+    command_complete_handler = &normal_operation;
 
     p->deallocate();
     p = 0;

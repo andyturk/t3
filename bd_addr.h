@@ -5,14 +5,19 @@
 extern const char hex_digits[16];
 
 struct BD_ADDR {
-  enum {PP_BUF_LEN = 24};
+  static char pp_buf[24];
   uint8_t data[6];
-  void pretty_print(char *buf) {
+
+  const char *pretty_print() {
+    char *p = pp_buf;
+
     for (int i=5; i >= 0; --i) {
-      *buf++ = hex_digits[data[i] >> 4];
-      *buf++ = hex_digits[data[i] & 0x0f];
-      if (i > 0) *buf++ = ':';
+      *p++ = hex_digits[data[i] >> 4];
+      *p++ = hex_digits[data[i] & 0x0f];
+      if (i > 0) *p++ = ':';
     }
-    *buf++ = 0;
+    *p++ = 0;
+
+    return pp_buf;
   }
 };
