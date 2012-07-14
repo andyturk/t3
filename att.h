@@ -53,24 +53,27 @@ class Attribute<const char *> : public AttributeBase {
 };
 
 class ATT_Channel : public Channel {
-  bool read_handles(uint16_t &starting, uint16_t &ending, Packet *p, uint8_t opcode);
-  bool read_uuid(UUID &u, Packet *p, uint8_t opcode);
-  void error(uint8_t err, Packet *p, uint16_t handle, uint8_t opcode);
+  void error(uint8_t err);
+  bool read_handles();
+  bool read_type();
   bool is_grouping(const UUID &type);
 
-  void find_by_type_value(uint16_t from, uint16_t to, UUID &type, Packet *p);
-  void read_by_type(uint16_t from, uint16_t to, UUID &type, Packet *p);
-  void read_by_group_type(uint16_t from, uint16_t to, UUID &type, Packet *p);
-  void read(uint16_t h, Packet *p);
-  void read_blob(uint16_t h, uint16_t offset, Packet *p);
+  void find_by_type_value();
+  void read_by_type();
+  void read_by_group_type();
 
-  Ring<AttributeBase> attributes;
   uint16_t att_mtu;
-  
+
+  // parsed PDU parameters
+  uint8_t req_opcode, rsp_opcode;
+  uint16_t h1, h2, offset;
+  UUID type;
+  Packet *req;
+  Packet *rsp;
+
  public:
   ATT_Channel(HostController &hc);
   void receive(Packet *p);
-  void add(AttributeBase &attr) { attr.join(&attributes); }
 };
 
 
