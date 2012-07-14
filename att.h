@@ -62,6 +62,7 @@ class ATT_Channel : public Channel {
   void read_by_type(uint16_t from, uint16_t to, UUID &type, Packet *p);
   void read_by_group_type(uint16_t from, uint16_t to, UUID &type, Packet *p);
   void read(uint16_t h, Packet *p);
+  void read_blob(uint16_t h, uint16_t offset, Packet *p);
 
   Ring<AttributeBase> attributes;
   uint16_t att_mtu;

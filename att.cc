@@ -254,6 +254,25 @@ void ATT_Channel::read(uint16_t h, Packet *p) {
   send(p);
 }
 
+void ATT_Channel::read_blob(uint16_t h, uint16_t offset, Packet *p) {
+  AttributeBase *attr = AttributeBase::get(h);
+  if (attr == 0) {
+    error(ATT::INVALID_HANDLE, p, h, ATT::OPCODE_READ_BLOB_REQUEST);
+  } else {
+    p->l2cap(att_mtu) << (uint8_t) ATT::OPCODE_READ_BLOB_RESPONSE;
+    
+    if (attr->length < att_mtu) {
+      error(ATT::ATTRIBUTE_NOT_LONG, p, h, ATT::OPCODE_READ_BLOB_REQUEST);
+    } else if (offset >= attr->length) {
+      error(ATT::INVALID_OFFSET, p, h, ATT::OPCODE_READ_BLOB_REQUEST);
+    } else {
+      p->write(((uint8_t *) attr->_data) + offset, std::min(p->get_remaining(), attr->length));
+    }
+  }
+
+  send(p);
+}
+
 void ATT_Channel::receive(Packet *p) {
   uint8_t opcode;
   uint16_t starting, ending, short_type;
