@@ -2,7 +2,6 @@
 #include "h4.h"
 #include "hal.h"
 #include "hci.h"
-#include "utils/uartstdio.h"
 
 H4Tranceiver::H4Tranceiver(UART *u, HostController *c) :
   uart(u),
@@ -124,7 +123,7 @@ void H4Tranceiver::rx_queue_received_packet() {
   // be interrupted
 
   if (uart->can_read()) {
-    UARTprintf("warning: UART fifo not empty after received packet\n");
+    printf("warning: UART fifo not empty after received packet\n");
   }
 
   rx->flip();

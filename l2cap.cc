@@ -1,6 +1,6 @@
+#include "assert.h"
 #include "hci.h"
 #include "l2cap.h"
-#include "utils/uartstdio.h"
 
 extern BBand pan1323;
 
@@ -27,7 +27,7 @@ Channel *Channel::find(uint16_t id) {
 }
 
 void Channel::receive(Packet *p) {
-  UARTprintf("received data for channel 0x%04x\n", channel_id);
+  printf("received data for channel 0x%04x\n", channel_id);
   p->deallocate();
 }
 

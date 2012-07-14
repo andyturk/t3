@@ -2,7 +2,6 @@
 
 #include <cstring>
 
-#include "utils/uartstdio.h"
 #include "assert.h"
 #include "bluetooth_constants.h"
 #include "bd_addr.h"
@@ -107,6 +106,7 @@ class Packet : public Ring<Packet>, public FlipBuffer {
   operator uint8_t *() {return storage + position;}
 
   void prepare_for_tx() {
+
     if (position != 0) flip();
 
     switch (storage[0]) {
@@ -125,8 +125,10 @@ class Packet : public Ring<Packet>, public FlipBuffer {
     seek(0);
 
     if (title) {
+#ifdef DEBUG
       UARTprintf("%s: ", title);
       dump();
+#endif
       title = 0;
     }
   }
@@ -159,9 +161,9 @@ class Packet : public Ring<Packet>, public FlipBuffer {
 
   void dump() {
     for (unsigned int i=position; i < limit; ++i) {
-      UARTprintf("%02x ", storage[i]);
+      printf("%02x ", storage[i]);
     }
-    UARTprintf("\n");
+    printf("\n");
   }
 };
 

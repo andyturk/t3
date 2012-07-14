@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "assert.h"
 #include "buffer.h"
 #include "hal.h"
 #include "hci.h"
@@ -7,7 +8,6 @@
 #include "att.h"
 #include "gatt.h"
 
-#include "utils/uartstdio.h"
 
 IOPin led1('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);
@@ -49,7 +49,7 @@ extern "C" int main() {
   systick.configure();
 
   UARTStdioInitExpClk(0, 115200); // UART0 is the console
-  UARTprintf("console initialized\n");
+  printf("console initialized\n");
 
   //systick.initialize();
 

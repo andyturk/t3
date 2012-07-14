@@ -6,7 +6,6 @@
 #include "driverlib/sysctl.h"
 #include "driverlib/systick.h"
 #include "driverlib/interrupt.h"
-#include "utils/uartstdio.h"
 #include "driverlib/gpio.h"
 #include "driverlib/uart.h"
 

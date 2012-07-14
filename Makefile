@@ -26,6 +26,7 @@ CFLAGS  = -I. -I/usr/local/arm-gcc/include
 CFLAGS += -I$(TI_CMSIS)/Include -I$(ARM_CMSIS)/Include -I$(STELLARIS)/inc
 CFLAGS += -I$(STELLARISWARE)
 CFLAGS += -mcpu=cortex-m3 -mthumb -g -Dgcc -DPART_LM3S9D96 -fms-extensions -Wall
+CFLAGS += -DDEBUG=1
 CFLAGS += -Wno-pmf-conversions -Wno-psabi -std=gnu++0x
 
 LDFLAGS = -nostdlib -fno-builtin -nostartfiles -nodefaultlibs -T lm3s9d96.ld

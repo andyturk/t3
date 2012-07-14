@@ -1,7 +1,7 @@
 #include <cstring>
 #include <algorithm>
 
-#include "utils/uartstdio.h"
+#include "assert.h"
 #include "att.h"
 
 AttributeBase::AttributeBase(const UUID &t, void *d, uint16_t l) :
@@ -70,7 +70,7 @@ bool ATT_Channel::read_uuid(UUID &uuid, Packet *p, uint8_t opcode) {
     break;
 
   default :
-    UARTprintf("UUID must be either 2 or 16 bytes\n");
+    printf("UUID must be either 2 or 16 bytes\n");
     p->l2cap();
     *p << (uint8_t) ATT::OPCODE_ERROR << opcode << (uint16_t) 0 << (uint8_t) ATT::INVALID_PDU;
     send(p);
@@ -188,6 +188,7 @@ void ATT_Channel::find_by_type_value(uint16_t first_handle, uint16_t last_handle
     attribute_not_found(rsp, first_handle, ATT::OPCODE_FIND_BY_TYPE_VALUE_REQUEST);
   }
 
+  rsp->title = "find by type value response";
   send(rsp);
   req->deallocate();
 }
@@ -228,6 +229,7 @@ void ATT_Channel::read_by_type(uint16_t starting_handle, uint16_t ending_handle,
     attribute_data_length = sizeof(uint16_t) + data_length;
   }
 
+  p->title = "read by type response";
   send(p);
 }
 
@@ -238,7 +240,7 @@ void ATT_Channel::receive(Packet *p) {
 
   *p >> opcode;
 
-  UARTprintf("ATT opcode 0x%02x\n", opcode);
+  printf("ATT opcode 0x%02x\n", opcode);
 
   switch (opcode) {
   case ATT::OPCODE_ERROR : {
@@ -246,7 +248,7 @@ void ATT_Channel::receive(Packet *p) {
     uint8_t error;
 
     *p >> opcode >> handle >> error;
-    UARTprintf("ATT error for opcode: 0x%02x, handle: 0x%04x, error: 0x%02x\n", opcode, handle, error);
+    printf("ATT error for opcode: 0x%02x, handle: 0x%04x, error: 0x%02x\n", opcode, handle, error);
     break;
   }
 
@@ -270,7 +272,7 @@ void ATT_Channel::receive(Packet *p) {
     break;
 
   default :
-    UARTprintf("unrecognized att opcode: 0x%02x\n", opcode);
+    printf("unrecognized att opcode: 0x%02x\n", opcode);
     break;
   }
 }
