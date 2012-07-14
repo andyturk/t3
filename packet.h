@@ -6,6 +6,7 @@
 #include "bluetooth_constants.h"
 #include "bd_addr.h"
 #include "pool.h"
+#include "debug.h"
 
 using namespace HCI;
 
@@ -160,9 +161,7 @@ class Packet : public Ring<Packet>, public FlipBuffer {
   Packet &l2cap(Packet *other, uint16_t lim=0) {reset(lim); write(other->storage, L2CAP_HEADER_SIZE); return *this;}
 
   void dump() {
-    for (unsigned int i=position; i < limit; ++i) {
-      printf("%02x ", storage[i]);
-    }
+    dump_hex_bytes((uint8_t *) *this, get_remaining());
     printf("\n");
   }
 };

@@ -57,6 +57,7 @@ extern "C" int main() {
   led1.set_value(0);
   CPU::set_master_interrupt_enable(true);
   
+  AttributeBase::dump_attributes();
   pan1323.initialize();
 
   do {

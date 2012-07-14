@@ -20,12 +20,14 @@ class AttributeBase : public Ring<AttributeBase> {
   AttributeBase(const UUID &t, void *d, uint16_t l);
   AttributeBase(int16_t t, void *d, uint16_t l);
 
-  static AttributeBase *get(uint16_t n) {assert(n < next_handle); return all_handles[n];}
+  static AttributeBase *get(uint16_t h) {return (h < next_handle) ? all_handles[h] : 0;}
   static uint16_t find_by_type_value(uint16_t start, uint16_t type, void *value, uint16_t length);
   static uint16_t find_by_type(uint16_t start, const UUID &type);
   int compare(void *data, uint16_t len);
   int compare(void *data, uint16_t len, uint16_t min_handle, uint16_t max_handle);
   virtual uint16_t group_end();
+
+  static void dump_attributes();
 };
 
 template<typename T>
@@ -53,12 +55,13 @@ class Attribute<const char *> : public AttributeBase {
 class ATT_Channel : public Channel {
   bool read_handles(uint16_t &starting, uint16_t &ending, Packet *p, uint8_t opcode);
   bool read_uuid(UUID &u, Packet *p, uint8_t opcode);
-  void attribute_not_found(Packet *p, uint16_t handle, uint8_t opcode);
+  void error(uint8_t err, Packet *p, uint16_t handle, uint8_t opcode);
   bool is_grouping(const UUID &type);
 
   void find_by_type_value(uint16_t from, uint16_t to, UUID &type, Packet *p);
   void read_by_type(uint16_t from, uint16_t to, UUID &type, Packet *p);
   void read_by_group_type(uint16_t from, uint16_t to, UUID &type, Packet *p);
+  void read(uint16_t h, Packet *p);
 
   Ring<AttributeBase> attributes;
   uint16_t att_mtu;
