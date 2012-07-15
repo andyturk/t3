@@ -87,11 +87,15 @@ const char *UUID::pretty_print() {
   static char buffer[40];
   char *p = buffer;
 
-  for (int i=15; i >= 12; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
-  for (int i=11; i >= 10; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
-  for (int i= 9; i >=  8; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
-  for (int i= 7; i >=  6; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
-  for (int i= 5; i >=  0; --i, p += 2) to_hex(p, data[i]);
+  if (is_16bit()) {
+    for (int i=13; i >= 12; --i, p += 2) to_hex(p, data[i]);
+  } else {
+    for (int i=15; i >= 12; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
+    for (int i=11; i >= 10; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
+    for (int i= 9; i >=  8; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
+    for (int i= 7; i >=  6; --i, p += 2) to_hex(p, data[i]); *p++ = '-';
+    for (int i= 5; i >=  0; --i, p += 2) to_hex(p, data[i]);
+  }
 
   return buffer;
 }
