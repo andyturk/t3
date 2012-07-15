@@ -93,6 +93,11 @@ void H4Tranceiver::rx_packet_indicator() {
     rx_state = &rx_acl_header;
     break;
 
+  case HCI::GO_TO_SLEEP_IND :
+    //printf("baseband wants to sleep!\n");
+    rx->reset();
+    break;
+
   case HCI::COMMAND_PACKET :
   case HCI::SYNCHRONOUS_DATA_PACKET :
   default :
