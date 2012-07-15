@@ -21,6 +21,10 @@ void *allocate_heap_space(size_t size) {
   return value;
 }
 
+extern "C" void *_sbrk(int nbytes) {
+  return allocate_heap_space((size_t) nbytes);
+}
+
 void *operator new(size_t size) {
   return allocate_heap_space(size);
 }
