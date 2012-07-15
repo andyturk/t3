@@ -58,11 +58,12 @@ class ATT_Channel : public Channel {
   bool read_type();
   bool is_grouping(const UUID &type);
 
+  void find_information();
   void find_by_type_value();
   void read_by_type();
   void read_by_group_type();
 
-  uint16_t att_mtu;
+  uint16_t client_rx_mtu, att_mtu;
 
   // parsed PDU parameters
   uint8_t req_opcode, rsp_opcode;

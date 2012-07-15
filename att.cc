@@ -108,6 +108,42 @@ bool ATT_Channel::is_grouping(const UUID &type) {
   return true;
 }
 
+void ATT_Channel::find_information() {
+  rsp = req; // re-use request packet
+
+  const uint16_t short_info = sizeof(uint16_t) + sizeof(uint16_t);
+  const uint16_t long_info = sizeof(uint16_t) + sizeof(UUID);
+
+  uint16_t info_length = short_info;
+
+ restart:
+  rsp->l2cap(att_mtu);
+  *rsp << rsp_opcode;
+  uint8_t *format = (uint8_t *) rsp;
+  *rsp << (uint8_t) 0; // format placeholder
+
+  for (uint16_t h=h1; h <= h2 && rsp->get_remaining() >= info_length; ++h) {
+    AttributeBase *attr = AttributeBase::get(h);
+    assert(attr != 0);
+
+    if (info_length == short_info) {
+      if (!attr->type.is_16bit()) {
+        info_length = long_info;
+        goto restart;
+      }
+
+      *rsp << attr->handle;
+      *rsp << (uint16_t) attr->type;
+    } else {
+      *rsp << attr->handle;
+      rsp->write(attr->type.data, sizeof(attr->type.data));
+    }
+  }
+
+  *format = (info_length == short_info) ? 0x01 : 0x02;
+  rsp->title = "find information response";
+}
+
 void ATT_Channel::read_by_group_type() {
   if (!is_grouping(type)) {
     error(ATT::UNSUPPORTED_GROUP_TYPE);
@@ -254,6 +290,21 @@ void ATT_Channel::receive(Packet *p) {
            req_opcode, h1, error_code);
     break;
   }
+
+  case ATT::OPCODE_EXCHANGE_MTU_REQUEST :
+    rsp_opcode = ATT::OPCODE_EXCHANGE_MTU_RESPONSE;
+    *req >> client_rx_mtu;
+    rsp = req;
+    rsp->l2cap() << rsp_opcode << att_mtu;
+    printf("ATT: client MTU = %d\n", client_rx_mtu);
+    break;
+
+  case ATT::OPCODE_FIND_INFORMATION_REQUEST :
+    rsp_opcode = ATT::OPCODE_FIND_INFORMATION_RESPONSE;
+    if (!read_handles()) break;
+    printf("ATT: find information %04x-%04x\n", h1, h2);
+    find_information();
+    break;
 
   case ATT::OPCODE_FIND_BY_TYPE_VALUE_REQUEST :
     rsp_opcode = ATT::OPCODE_FIND_BY_TYPE_VALUE_RESPONSE;
