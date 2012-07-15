@@ -141,7 +141,6 @@ void ATT_Channel::find_information() {
   }
 
   *format = (info_length == short_info) ? 0x01 : 0x02;
-  rsp->title = "find information response";
 }
 
 void ATT_Channel::read_by_group_type() {
@@ -186,8 +185,6 @@ void ATT_Channel::read_by_group_type() {
   } else {
     attribute_data_length = 2*sizeof(uint16_t) + data_length;
   }
-
-  rsp->title = "read by group type response";
 }
 
 void ATT_Channel::find_by_type_value() {
@@ -231,8 +228,6 @@ void ATT_Channel::find_by_type_value() {
     error(ATT::ATTRIBUTE_NOT_FOUND);
     return;
   }
-
-  rsp->title = "find by type value response";
 }
 
 void ATT_Channel::read_by_type() {
@@ -270,12 +265,11 @@ void ATT_Channel::read_by_type() {
     error(ATT::ATTRIBUTE_NOT_FOUND);
     return;
   }
-
-  rsp->title = "read by type response";
 }
 
 void ATT_Channel::receive(Packet *p) {
   AttributeBase *attr = 0;
+
   req = p;
   rsp = 0;
 
@@ -370,7 +364,11 @@ void ATT_Channel::receive(Packet *p) {
     break;
   }
 
-  if (rsp != 0) send(rsp);
+  if (rsp != 0) {
+    rsp->title = "response";
+    send(rsp);
+  }
+
   if (req != rsp) req->deallocate();
 
   req = rsp = 0;
