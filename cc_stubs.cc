@@ -94,6 +94,7 @@ extern "C" {
     for(;;);
   }
 
+  /*
   void * memcpy(void * dst, void const * src, size_t len)
   {
     long * plDst = (long *) dst;
@@ -133,4 +134,5 @@ extern "C" {
     ++p;
     return p - p0;
   }
+  */
 }
