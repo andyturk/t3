@@ -116,9 +116,11 @@ void BBand::default_event_handler(uint8_t event, Packet *p) {
     uint8_t *num_of_completed_packets = (uint8_t *) *p;
 
     for (uint8_t i=0; i < number_of_handles; ++i) {
+      /*
       printf("connection 0x%04x completed %d packets\n",
                  connection_handle[i],
                  num_of_completed_packets[i]);
+      */
     }
     break;
   }
@@ -217,10 +219,9 @@ void BBand::standard_packet_handler(Packet *p) {
     Channel *channel = Channel::find(cid);
 
     if (channel) {
-      printf("ACL packet for channel 0x%04x\n", cid);
       channel->receive(p);
     } else {
-      printf("discarding ACL packet for unknown channel: 0x%04x\n", cid);
+      printf("ACL packet for unknown channel: 0x%04x\n", cid);
       p->deallocate();
     }
     break;
@@ -306,8 +307,8 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
 
     for (size_t i=0; i < command_length; ++i) p->put(cmd[i]);
     patch_state.offset += command_length;
-    //printf("patch command %04x @ %d (%d)\n",
-    //           patch_state.expected_opcode, patch_state.offset - command_length, command_length);
+    //    printf("patch command %04x @ %d (%d)\n",
+    //               patch_state.expected_opcode, patch_state.offset - command_length, command_length);
     p->flip();
     send(p);
   } else {
@@ -345,6 +346,7 @@ void BBand::normal_operation(uint16_t opcode, Packet *p) {
 
 void BBand::warm_boot(uint16_t opcode, Packet *p) {
   assert(!uart.can_read());
+
   if (opcode != 0) {
     uint8_t status = p->get();
 
