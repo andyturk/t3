@@ -127,7 +127,7 @@ class Packet : public Ring<Packet>, public FlipBuffer {
 
     if (title) {
 #ifdef DEBUG
-      UARTprintf("%s: ", title);
+      printf("%s:\n", title);
       dump();
 #endif
       title = 0;
