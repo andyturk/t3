@@ -94,7 +94,11 @@ namespace HCI {
     COMMAND_PACKET                                                   = 0x01,
     ACL_PACKET                                                       = 0x02,
     SYNCHRONOUS_DATA_PACKET                                          = 0x03,
-    EVENT_PACKET                                                     = 0x04
+    EVENT_PACKET                                                     = 0x04,
+    GO_TO_SLEEP_IND                                                  = 0x30,
+    GO_TO_SLEEP_ACK                                                  = 0x31,
+    WAKE_UP_IND                                                      = 0x32,
+    WAKE_UP_ACK                                                      = 0x33
   };
 
   enum opcode {
