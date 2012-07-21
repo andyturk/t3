@@ -161,6 +161,8 @@ class Packet : public Ring<Packet>, public FlipBuffer {
   Packet &l2cap(Packet *other, uint16_t lim=0) {reset(lim); write(other->storage, L2CAP_HEADER_SIZE); return *this;}
 
   void dump() {
+    void dump_hex_bytes(uint8_t *, size_t);
+
     dump_hex_bytes((uint8_t *) *this, get_remaining());
     printf("\n");
   }
