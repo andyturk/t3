@@ -3,9 +3,9 @@
 #include "hal.h"
 #include "hci.h"
 
-H4Tranceiver::H4Tranceiver(UART *u, HostController *c) :
+H4Tranceiver::H4Tranceiver(UART *u) :
   uart(u),
-  controller(c),
+  controller(0),
   rx(0),
   rx_state(0)
 {
@@ -28,10 +28,13 @@ void H4Tranceiver::drain_uart() {
 }
 
 void H4Tranceiver::fill_uart() {
+  assert(controller != 0);
+  Ring<Packet> &sent = controller->sent_packets();
+
   __asm("cpsid i");
 
-  while (!controller->sent.empty() && uart->can_write()) {
-    Packet *tx = controller->sent.rbegin(); // first in, first out
+  while (!sent.empty() && uart->can_write()) {
+    Packet *tx = sent.rbegin(); // first in, first out
 
     while ((tx->get_remaining() > 0) && uart->can_write()) {
       uint8_t byte = tx->get();
@@ -41,7 +44,7 @@ void H4Tranceiver::fill_uart() {
     if (tx->get_remaining() == 0) tx->deallocate();
   }
 
-  if (!controller->sent.empty()) {
+  if (!sent.empty()) {
     uart->set_interrupt_sources(UART::RX | UART::TX | UART::ERROR);
   }
 
@@ -60,7 +63,7 @@ void H4Tranceiver::uart_interrupt() {
   cause = UART::RX | UART::ERROR;
 
   // but only enable the tx interrupt if there's data to send
-  if (!controller->sent.empty()) cause |= UART::TX;
+  if (!controller->sent_packets().empty()) cause |= UART::TX;
   uart->set_interrupt_sources(cause);
 }
 
@@ -76,7 +79,7 @@ void H4Tranceiver::rx_packet_indicator() {
 
   switch (ind) {
   case HCI::EVENT_PACKET :
-    rx = controller->command_packets->allocate();
+    rx = controller->allocate_command_packet();
     assert(rx != 0);
 
     rx->set_limit(1+1+1); // indicator, event code, param length
@@ -85,7 +88,7 @@ void H4Tranceiver::rx_packet_indicator() {
     break;
 
   case HCI::ACL_PACKET :
-    rx = controller->acl_packets->allocate();
+    rx = controller->allocate_acl_packet();
     assert(rx != 0);
 
     rx->set_limit(1+4);
@@ -132,7 +135,7 @@ void H4Tranceiver::rx_queue_received_packet() {
   }
 
   rx->flip();
-  rx->join(&controller->incoming_packets);
+  rx->join(&controller->received_packets());
   rx_new_packet();
 }
 

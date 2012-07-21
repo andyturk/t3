@@ -13,6 +13,7 @@
 #include "bluetooth_constants.h"
 #include "bd_addr.h"
 #include "packet.h"
+#include "h4.h"
 
 extern const char hex_digits[16];
 
@@ -24,7 +25,7 @@ namespace HCI {
 
 using namespace HCI;
 
-class HostController {
+class HostController : public H4Controller {
  protected:
   PoolBase<Packet> *command_packets;
   PoolBase<Packet> *acl_packets;
@@ -43,6 +44,12 @@ class HostController {
     acl_packets(acl),
     connections(conn)
   {}
+
+  // H4Controller methods
+  virtual Ring<Packet> &sent_packets() { return sent; }
+  virtual Ring<Packet> &received_packets() { return incoming_packets; }
+  virtual Packet *allocate_command_packet() { return command_packets->allocate(); }
+  virtual Packet *allocate_acl_packet() { return acl_packets->allocate(); }
 
   virtual void initialize() {}
   virtual void periodic(uint32_t msec) {}

@@ -9,13 +9,15 @@
 #include "gatt.h"
 #include "screen.h"
 
+// #include "bts.h"
+
 IOPin led1('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);
 //UART0 uart0;
 UART1 uart1;
 BBand pan1323(uart1, pc4);
 SysTick systick(1000);
-H4Tranceiver h4(&uart1, &pan1323);
+H4Tranceiver h4(&uart1);
 ATT_Channel att_channel(pan1323);
 GAP_Service gap("Test Dev 1");
 GATT_Service gatt;
@@ -56,6 +58,7 @@ extern "C" int main() {
 
   led1.initialize();
   led1.set_value(0);
+  h4.set_controller(&pan1323);
   CPU::set_master_interrupt_enable(true);
   
   AttributeBase::dump_attributes();

@@ -111,9 +111,9 @@ void BBand::default_event_handler(uint8_t event, Packet *p) {
     uint8_t number_of_handles;
 
     *p >> number_of_handles;
-    uint16_t *connection_handle = (uint16_t *) (uint8_t *) *p;
+    // uint16_t *connection_handle = (uint16_t *) (uint8_t *) *p;
     p->skip(number_of_handles*sizeof(uint16_t));
-    uint8_t *num_of_completed_packets = (uint8_t *) *p;
+    // uint8_t *num_of_completed_packets = (uint8_t *) *p;
 
     for (uint8_t i=0; i < number_of_handles; ++i) {
       /*

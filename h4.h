@@ -5,9 +5,17 @@
 class UART;
 class HostController;
 
+class H4Controller {
+ public:
+  virtual Ring<Packet> &sent_packets() = 0;
+  virtual Ring<Packet> &received_packets() = 0;
+  virtual Packet *allocate_command_packet() = 0;
+  virtual Packet *allocate_acl_packet() = 0;
+};
+
 class H4Tranceiver {
   UART *const uart;
-  HostController *const controller;
+  H4Controller *controller;
 
   Packet *rx;
   SizedPacket<1> indicator;
@@ -23,7 +31,10 @@ class H4Tranceiver {
   void drain_uart();
 
  public:
-  H4Tranceiver(UART *u, HostController *c);
+  H4Tranceiver(UART *u);
+
+  H4Controller *get_controller() const { return controller; }
+  void set_controller(H4Controller *c) { controller = c; }
 
   void reset();
   void fill_uart();
