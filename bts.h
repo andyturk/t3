@@ -38,13 +38,14 @@ namespace BTS {
       uint16_t size;
     } command_header;
 
-    virtual void header(script_header &h);
-    virtual void send(Packet &action);
-    virtual void expect(uint32_t msec, Packet &action);
-    virtual void configure(uint32_t baud, flow_control control);
-    virtual void call(const char *filename);
-    virtual void comment(const char *text);
-    virtual void error(const char *reason);
+    virtual void header(script_header &h) = 0;
+    virtual void send(Packet &action) = 0;
+    virtual void expect(uint32_t msec, Packet &action) = 0;
+    virtual void configure(uint32_t baud, flow_control control) = 0;
+    virtual void call(const char *filename) = 0;
+    virtual void comment(const char *text) = 0;
+    virtual void error(const char *reason) = 0;
+    virtual void done() = 0;
   };
 
   class Recorder : public Script {
@@ -59,6 +60,7 @@ namespace BTS {
     virtual void configure(uint32_t baud, flow_control control);
     virtual void call(const char *filename);
     virtual void comment(const char *text);
+    virtual void done();
   };
 
   class Player : public Script {
@@ -66,7 +68,7 @@ namespace BTS {
 
   public:
     Player(const uint8_t *bytes, uint16_t length);
-    void play();
+    void play_next_action();
     virtual void header(script_header &h);
   };
 

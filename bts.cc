@@ -1,14 +1,6 @@
 #include "bts.h"
 
 namespace BTS {
-  void Script::header(script_header &h) {}
-  void Script::send(Packet &action) {}
-  void Script::expect(uint32_t msec, Packet &action) {}
-  void Script::configure(uint32_t baud, flow_control control) {}
-  void Script::call(const char *filename) {}
-  void Script::comment(const char *text) {}
-  void Script::error(const char *reason) {}
-
   void Recorder::header(script_header &h) {
     script.write((uint8_t *) &h, sizeof(h));
   }
@@ -37,6 +29,10 @@ namespace BTS {
     // not implemented
   }
 
+  void Recorder::done() {
+    // nothing to do
+  }
+
   Player::Player(const uint8_t *bytes, uint16_t length) :
     script((uint8_t *) bytes, length)
   {
@@ -44,19 +40,26 @@ namespace BTS {
     header(h);
   }
 
-  void Player::play() {
-    script_header h;
-    header(h);
+  void Player::header(script_header &h) {
+    assert(script.get_remaining() >= sizeof(h));
+    script.read((uint8_t *) &h, sizeof(h));
+    if (h.magic != BTSB) error("bad magic");
+  }
 
-    while (script.get_remaining() > sizeof(command_header)) {
+  void Player::play_next_action() {
+    if (script.get_remaining() == 0) {
+      done();
+    } else if(script.get_remaining() < sizeof(command_header)) {
+      error("bad script");
+    } else {
       uint16_t action, length;
       script >> action >> length;
 
       switch (action) {
       case SEND_COMMAND : {
         Packet command((uint8_t *) script, length);
-        send(command);
         script.skip(length);
+        send(command);
         break;
       }
 
@@ -65,28 +68,30 @@ namespace BTS {
 
         script >> msec;
         Packet event((uint8_t *) script, length);
-        expect(msec, event);
         script.skip(length);
+        expect(msec, event);
         break;
       }
 
       case SERIAL_PORT_PARAMETERS : {
         uint32_t baud, control;
         script >> baud >> control;
-        configure(baud, (flow_control) control);
         script.skip(length);
+        configure(baud, (flow_control) control);
         break;
       }
 
       case RUN_SCRIPT : {
-        call((char *) (uint8_t *) script);
+        Packet filename((uint8_t *) script, length);
         script.skip(length);
+        call((char *) (uint8_t *) filename);
         break;
       }
 
       case REMARKS : {
-        comment((char *) (uint8_t *) script);
+        Packet text((uint8_t *) script, length);
         script.skip(length);
+        comment((char *) (uint8_t *) text);
         break;
       }
 
@@ -95,12 +100,6 @@ namespace BTS {
         return;
       }
     }
-  }
-
-  void Player::header(script_header &h) {
-    assert(script.get_remaining() >= sizeof(h));
-    script.read((uint8_t *) &h, sizeof(h));
-    assert(h.magic == BTSB);
   }
 
   H4Player::H4Player(H4Tranceiver &h, const uint8_t *bytes, uint16_t length) :
