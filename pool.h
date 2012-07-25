@@ -38,7 +38,13 @@ class Pool : public PoolBase<T> {
   T pool[size];
 
  public:
- Pool() : PoolBase<T>(size) {
+  Pool() :
+    PoolBase<T>(size)
+  {
+    reset();
+  }
+
+  void reset() {
     for (unsigned int i=0; i < size; ++i) {
       Ring<T> *p = (Ring<T> *) (pool + i);
       p->join(&this->available);
