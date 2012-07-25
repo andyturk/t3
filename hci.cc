@@ -25,9 +25,11 @@ int AttributeBase::compare(void *other, uint16_t len) {
   return length < len ? -1 : 1;
 }
 
+extern H4Tranceiver h4;
+
 BBand::BBand(UART &u, IOPin &s) :
-  HostController((PoolBase<Packet> *) &command_packet_pool,
-                 (PoolBase<Packet> *) &acl_packet_pool,
+  HostController((PoolBase<Packet> *) &h4.command_packets,
+                 (PoolBase<Packet> *) &h4.acl_packets,
                  (PoolBase<HCI::Connection> *) &hci_connection_pool),
   uart(u),
   shutdown(s),
@@ -61,18 +63,19 @@ void HostController::send(Packet *p) {
   extern H4Tranceiver h4;
   assert(p != 0);
   p->prepare_for_tx();
-  p->join(&sent);
+  p->join(&h4.packets_to_send);
   h4.fill_uart();
 }
 
 void BBand::process_incoming_packets() {
+  extern H4Tranceiver h4;
   Packet *p;
 
   do {
     uart.set_interrupt_enable(false);
 
-    Ring<Packet>::Iterator i = incoming_packets.rbegin();
-    if (i != incoming_packets.end()) {
+    Ring<Packet>::Iterator i = h4.packets_received.rbegin();
+    if (i != h4.packets_received.end()) {
       p = i;
       p->join(p);
     } else {

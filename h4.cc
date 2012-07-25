@@ -13,7 +13,12 @@ H4Tranceiver::H4Tranceiver(UART *u) :
 }
 
 void H4Tranceiver::reset() {
-  rx_new_packet();
+  command_packets.reset(); // all command packets are on the free list
+  acl_packets.reset();     // same for acl packets
+  packets_to_send.join(&packets_to_send); // clear the send queue
+  packets_received.join(&packets_received); // clear the receive queue
+
+  rx_new_packet(); // start looking for a new packet
 }
 
 void H4Tranceiver::drain_uart() {
@@ -28,23 +33,23 @@ void H4Tranceiver::drain_uart() {
 }
 
 void H4Tranceiver::fill_uart() {
-  assert(controller != 0);
-  Ring<Packet> &sent = controller->sent_packets();
-
   __asm("cpsid i");
 
-  while (!sent.empty() && uart->can_write()) {
-    Packet *tx = sent.rbegin(); // first in, first out
+  while (!packets_to_send.empty() && uart->can_write()) {
+    Packet *tx = packets_to_send.rbegin(); // first in, first out
 
     while ((tx->get_remaining() > 0) && uart->can_write()) {
       uint8_t byte = tx->get();
       uart->write(&byte, 1);
     }
 
-    if (tx->get_remaining() == 0) tx->deallocate();
+    if (tx->get_remaining() == 0) {
+      if (controller) controller->sent(tx);
+      tx->deallocate();
+    }
   }
 
-  if (!sent.empty()) {
+  if (!packets_to_send.empty()) {
     uart->set_interrupt_sources(UART::RX | UART::TX | UART::ERROR);
   }
 
@@ -63,7 +68,7 @@ void H4Tranceiver::uart_interrupt() {
   cause = UART::RX | UART::ERROR;
 
   // but only enable the tx interrupt if there's data to send
-  if (!controller->sent_packets().empty()) cause |= UART::TX;
+  if (!packets_to_send.empty()) cause |= UART::TX;
   uart->set_interrupt_sources(cause);
 }
 
@@ -79,7 +84,7 @@ void H4Tranceiver::rx_packet_indicator() {
 
   switch (ind) {
   case HCI::EVENT_PACKET :
-    rx = controller->allocate_command_packet();
+    rx = command_packets.allocate();
     assert(rx != 0);
 
     rx->set_limit(1+1+1); // indicator, event code, param length
@@ -88,7 +93,7 @@ void H4Tranceiver::rx_packet_indicator() {
     break;
 
   case HCI::ACL_PACKET :
-    rx = controller->allocate_acl_packet();
+    rx = acl_packets.allocate();
     assert(rx != 0);
 
     rx->set_limit(1+4);
@@ -135,7 +140,8 @@ void H4Tranceiver::rx_queue_received_packet() {
   }
 
   rx->flip();
-  rx->join(&controller->received_packets());
+  rx->join(&packets_received);
+  if (controller) controller->received(rx);
   rx_new_packet();
 }
 

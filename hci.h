@@ -31,8 +31,6 @@ class HostController : public H4Controller {
   PoolBase<Packet> *acl_packets;
   PoolBase<Connection> *connections;
 
-  Ring<Packet> incoming_packets;
-  Ring<Packet> sent;
   Ring<Connection> remotes;
   uint8_t command_packet_budget;
 
@@ -46,16 +44,14 @@ class HostController : public H4Controller {
   {}
 
   // H4Controller methods
-  virtual Ring<Packet> &sent_packets() { return sent; }
-  virtual Ring<Packet> &received_packets() { return incoming_packets; }
-  virtual Packet *allocate_command_packet() { return command_packets->allocate(); }
-  virtual Packet *allocate_acl_packet() { return acl_packets->allocate(); }
+  virtual void sent(Packet *p) {}
+  virtual void received(Packet *p) {}
 
   virtual void initialize() {}
   virtual void periodic(uint32_t msec) {}
   virtual void send(Packet *p);
   virtual void receive(Packet *p) {
-    p->join(&incoming_packets);
+    // p->join(&incoming_packets);
   }
 
   friend class H4Tranceiver;
@@ -65,8 +61,6 @@ class HostController : public H4Controller {
 class BBand : public HostController {
   UART &uart;
   IOPin &shutdown;
-  PacketPool<259, 4> command_packet_pool;
-  PacketPool<1000, 4> acl_packet_pool;
   Pool<HCI::Connection, 3> hci_connection_pool;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);

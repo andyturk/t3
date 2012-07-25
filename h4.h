@@ -1,16 +1,15 @@
 #pragma once
 
 #include "packet.h"
+#include "pool.h"
 
 class UART;
 class HostController;
 
 class H4Controller {
  public:
-  virtual Ring<Packet> &sent_packets() = 0;
-  virtual Ring<Packet> &received_packets() = 0;
-  virtual Packet *allocate_command_packet() = 0;
-  virtual Packet *allocate_acl_packet() = 0;
+  virtual void sent(Packet *p) = 0;
+  virtual void received(Packet *p) = 0;
 };
 
 class H4Tranceiver {
@@ -31,6 +30,11 @@ class H4Tranceiver {
   void drain_uart();
 
  public:
+  PacketPool<259, 4> command_packets;
+  PacketPool<1000, 4> acl_packets;
+  Ring<Packet> packets_to_send;
+  Ring<Packet> packets_received;
+
   H4Tranceiver(UART *u);
 
   H4Controller *get_controller() const { return controller; }
