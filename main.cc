@@ -9,8 +9,6 @@
 #include "gatt.h"
 #include "screen.h"
 
-// #include "bts.h"
-
 IOPin led1('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);
 //UART0 uart0;
