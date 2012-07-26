@@ -33,9 +33,8 @@ namespace BTS {
     // nothing to do
   }
 
-  Player::Player(const uint8_t *bytes, uint16_t length) :
-    script((uint8_t *) bytes, length)
-  {
+  void Player::reset(const uint8_t *bytes, uint16_t length) {
+    script.initialize((uint8_t *) bytes, length);
     script_header h;
     header(h);
   }
@@ -102,10 +101,63 @@ namespace BTS {
     }
   }
 
-  H4Player::H4Player(H4Tranceiver &h, const uint8_t *bytes, uint16_t length) :
-    Player(bytes, length),
+  H4Player::H4Player(H4Tranceiver &h) :
     h4(h)
   {
   }
 
+  void H4Player::reset(const uint8_t *bytes, uint16_t length) {
+    Player::reset(bytes, length);
+    h4.reset();
+    status = HCI::SUCCESS;
+    out = h4.command_packets.allocate();
+    play_next_action();
+  }
+
+  void H4Player::sent(Packet *p) {
+  }
+
+  void H4Player::command_succeeded(uint16_t opcode, Packet *p) {
+  }
+
+  void H4Player::received(Packet *p) {
+    uint8_t indicator, event, command_packet_budget;
+    uint16_t opcode;
+
+    *p >> indicator;
+    if (indicator == HCI::EVENT_PACKET) {
+      *p >> event;
+
+      if (event == HCI::EVENT_COMMAND_COMPLETE) {
+        *p >> command_packet_budget >> opcode >> status;
+
+        if (last_opcode == 0 || last_opcode == opcode) {
+          if (status == HCI::SUCCESS) {
+            last_opcode = 0;
+            command_succeeded(opcode, p);
+
+            if (!complete()) play_next_action();
+            return;
+          }
+        }
+      }
+    }
+
+    status = HCI::COMMAND_DISALLOWED;
+    script->set_position(script->get_limit());
+  }
+
+  void H4Player::send(Packet &action) {
+    out->reset();
+    out->write((uint8_t *) action, action.get_remaining());
+    out->flip();
+    out->join(&h4.packets_to_send);
+
+    uint8_t indicator;
+
+    action >> indicator >> last_opcode;
+    assert(indicator == HCI::COMMAND_PACKET);
+
+    action.reset();
+  }
 };

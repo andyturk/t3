@@ -64,19 +64,35 @@ namespace BTS {
   };
 
   class Player : public Script {
+  protected:
     Packet script;
 
   public:
-    Player(const uint8_t *bytes, uint16_t length);
+    virtual void reset(const uint8_t *bytes, uint16_t length);
     void play_next_action();
     virtual void header(script_header &h);
   };
 
   class H4Player : public Player, public H4Controller {
     H4Tranceiver &h4;
+    uint16_t last_opcode;
+    Packet *out;
+    uint8_t status;
 
   public:
-    H4Player(H4Tranceiver &h, const uint8_t *bytes, uint16_t length);
+    H4Player(H4Tranceiver &h);
+
+    virtual void command_succeeded(uint16_t opcode, Packet *p);
+
+    // H4Controller methods
+    virtual void sent(Packet *p);
+    virtual void received(Packet *p);
+
+    // Player methods
+    virtual void reset(const uint8_t *bytes, uint16_t length);
+    virtual void send(Packet &p);
+
+    bool is_complete() const {return script.get_remaining() > 0;}
   };
 };
 
