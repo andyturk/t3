@@ -1,10 +1,12 @@
-#include "bts.h"
-
 #ifndef __arm__
 #include <cstdio>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 using namespace std;
 #endif
+
+#include "bts.h"
 
 namespace BTS {
 #ifndef __arm__
@@ -25,7 +27,7 @@ namespace BTS {
   }
 
   void Recorder::configure(uint32_t baud, flow_control control) {
-    script << (uint16_t) SERIAL_PORT_PARAMETERS << baud << (uint32_t) control;
+    script << (uint16_t) SERIAL_PORT_PARAMETERS << (uint16_t) sizeof(configuration) << baud << control;
   }
 
   void Recorder::call(const char *filename) {
@@ -43,6 +45,9 @@ namespace BTS {
   void Recorder::error(const char *reason) {
   }
 #endif
+
+  Player::Player() : last_opcode(0) {
+  }
 
   void Player::reset(const uint8_t *bytes, uint16_t length) {
     script.initialize((uint8_t *) bytes, length);
@@ -62,46 +67,49 @@ namespace BTS {
     } else if(script.get_remaining() < sizeof(command_header)) {
       error("bad script");
     } else {
+      uint8_t *start = (uint8_t *) script;
       uint16_t action, length;
+
       script >> action >> length;
+      command.initialize(start, length + sizeof(command_header));
+      script.skip(length);
+      command.seek(sizeof(command_header));
 
       switch (action) {
       case SEND_COMMAND : {
-        Packet command((uint8_t *) script, length);
-        script.skip(length);
+        if (command.peek(0) == HCI::COMMAND_PACKET) {
+          uint8_t indicator;
+          uint16_t p = command.get_position();
+          command >> indicator >> last_opcode;
+          command.seek(p);
+        }
         send(command);
         break;
       }
 
       case WAIT_EVENT : {
-        uint16_t msec;
+        uint32_t msec, length2;
 
-        script >> msec;
-        Packet event((uint8_t *) script, length);
-        script.skip(length);
-        expect(msec, event);
+        command >> msec >> length2;
+        expect(msec, command);
         break;
       }
 
       case SERIAL_PORT_PARAMETERS : {
-        uint32_t baud, control;
-        script >> baud >> control;
-        script.skip(length);
-        configure(baud, (flow_control) control);
+        configuration config;
+        command >> config.baud >> config.control;
+        command.reset();
+        configure(config.baud, (flow_control) config.control);
         break;
       }
 
       case RUN_SCRIPT : {
-        Packet filename((uint8_t *) script, length);
-        script.skip(length);
-        call((char *) (uint8_t *) filename);
+        call((char *) (uint8_t *) command);
         break;
       }
 
       case REMARKS : {
-        Packet text((uint8_t *) script, length);
-        script.skip(length);
-        comment((char *) (uint8_t *) text);
+        comment((char *) (uint8_t *) command);
         break;
       }
 
@@ -111,6 +119,97 @@ namespace BTS {
       }
     }
   }
+
+#ifndef __arm__
+  StreamlineForDevice::StreamlineForDevice(const char *n) :
+    declaration_name(n)
+  {
+    cout << "const uint8_t " << declaration_name << "[] = {\n";
+  }
+
+  void StreamlineForDevice::emit(const uint8_t *bytes, uint16_t size) {
+    reset(bytes, size);
+    while (!is_complete()) play_next_action();
+  }
+
+  void StreamlineForDevice::as_hex(const uint8_t *bytes, uint16_t size, const char *start) {
+    const uint8_t *limit = bytes + size;
+
+    cout << hex << setfill('0');
+    while (bytes < limit) {
+      if (start) cout << start;
+      for (int i=0; i < 16 && bytes < limit; ++i)
+        cout << "0x" << setw(2) << (int) *bytes++ << ", ";
+      cout << "\n";
+    }
+    cout << dec;
+  }
+
+  StreamlineForDevice::~StreamlineForDevice() {
+    cout << "};\n";
+  }
+
+  void StreamlineForDevice::send(Packet &action) {
+    action.reset();
+    as_hex((uint8_t *) action, action.get_remaining(), "  ");
+    cout << endl;
+  }
+
+  void StreamlineForDevice::expect(uint32_t msec, Packet &action) {
+    cout << "// within " << msec << " msec expect:" << endl;
+    as_hex((uint8_t *) action, action.get_remaining(), "// ");
+    cout << endl;
+
+    uint8_t indicator, event, parameter_length, hci_packets, status;
+    action >> indicator >> event >> parameter_length;
+
+    if (indicator != HCI::EVENT_PACKET || event != HCI::EVENT_COMMAND_COMPLETE) {
+      cerr << "unsupported expectation\n";
+      exit(1);
+    }
+
+    uint16_t opcode;
+    action >> hci_packets >> opcode >> status;
+
+    if (last_opcode != 0 && last_opcode != opcode) {
+      cerr << "expectation not for last opcode\n";
+      exit(1);
+    }
+
+    last_opcode = 0;
+  }
+
+  void StreamlineForDevice::configure(uint32_t baud, flow_control control) {
+    const char *c;
+
+    switch (control) {
+    case NONE : c = "NONE"; break;
+    case HARDWARE : c = "HARDWARE"; break;
+    case NO_CHANGE : c = "NO_CHANGE"; break;
+    default :
+      cerr << "bad flow control specification\n";
+      exit(1);
+    }
+
+    cout << "// set baud to " << baud << " with flow control: " << c << endl;
+    command.reset();
+    as_hex((uint8_t *) command, command.get_remaining());
+  }
+
+  void StreamlineForDevice::call(const char *filename) {
+    cerr << "script chaining not supported\n";
+    exit(1);
+  }
+
+  void StreamlineForDevice::comment(const char *text) {
+    cout << "//" << text << endl;
+  }
+
+  void StreamlineForDevice::error(const char *msg) {
+    cerr << msg;
+    exit(1);
+  }
+#endif
 
 #ifdef __arm__
   H4Player::H4Player(H4Tranceiver &h) :
@@ -175,7 +274,23 @@ namespace BTS {
 #endif
 };
 
+
 #ifndef __arm__
 int main(int argc, char *argv[]) {
+  ifstream bts_file("bluetooth_init_cc2564_2.1.bts");
+  if (bts_file.is_open()) {
+    bts_file.seekg(0, ios::end);
+    size_t size = bts_file.tellg();
+    bts_file.seekg(0, ios::beg);
+
+    char *bytes = new char[size];
+    bts_file.read(bytes, size);
+
+    BTS::StreamlineForDevice streamliner("bootstrap_bts");
+
+    streamliner.emit((uint8_t *) bytes, size);
+
+    delete[] bytes;
+  }
 }
 #endif

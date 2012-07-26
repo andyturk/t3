@@ -1,6 +1,7 @@
 BUILD = build/host
 BTS_SOURCES = bts.cc
 BTS_OBJECTS = $(addsuffix .o,$(addprefix $(BUILD)/,$(basename $(BTS_SOURCES))))
+CFLAGS += -g
 
 vpath $BUILD
 

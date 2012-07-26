@@ -38,6 +38,11 @@ namespace BTS {
       uint16_t size;
     } command_header;
 
+    typedef struct {
+      uint32_t baud;
+      uint32_t control;
+    } configuration;
+
     virtual void header(script_header &h) = 0;
     virtual void send(Packet &action) = 0;
     virtual void expect(uint32_t msec, Packet &action) = 0;
@@ -68,13 +73,38 @@ namespace BTS {
 
   class Player : public Script {
   protected:
-    Packet script;
-
+    Packet script, command;
+    uint16_t last_opcode;
+    
   public:
+    Player();
     virtual void reset(const uint8_t *bytes, uint16_t length);
     void play_next_action();
     virtual void header(script_header &h);
+    bool is_complete() const {return script.get_remaining() == 0;}
   };
+
+#ifndef __arm__
+  class StreamlineForDevice : public Player {
+  protected:
+    const char *declaration_name;
+    void as_hex(const uint8_t *bytes, uint16_t size, const char *start = 0);
+
+  public:
+    StreamlineForDevice(const char *n);
+    ~StreamlineForDevice();
+
+    void emit(const uint8_t *bytes, uint16_t size);
+    virtual void send(Packet &action);
+    virtual void expect(uint32_t msec, Packet &action);
+    virtual void configure(uint32_t baud, flow_control control);
+    virtual void call(const char *filename);
+    virtual void comment(const char *text);
+    virtual void error(const char *msg);
+    virtual void done() { cout << "done!\n"; }
+    
+  };
+#endif
 
 #ifdef __arm__
   class H4Player : public Player, public H4Controller {
@@ -95,8 +125,6 @@ namespace BTS {
     // Player methods
     virtual void reset(const uint8_t *bytes, uint16_t length);
     virtual void send(Packet &p);
-
-    bool is_complete() const {return script.get_remaining() > 0;}
   };
 #endif
 };
