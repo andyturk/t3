@@ -15,20 +15,28 @@ class PoolBase {
     T *p = available.begin();
     if (p == available.end()) return 0;
 
+#ifdef __arm__
     __asm("cpsid i");
+#endif
     p->join(p);
     p->reset();
-    __asm("cpsie i");
 
+#ifdef __arm__
+    __asm("cpsie i");
+#endif
     return p;
   }
 
   void deallocate(T *p) {
     assert(p != 0);
 
+#ifdef __arm__
     __asm("cpsid i");
+#endif
     ((Ring<T> *) p)->join(&available);
+#ifdef __arm__
     __asm("cpsie i");
+#endif
   }
 };
 

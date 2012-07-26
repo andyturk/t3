@@ -48,6 +48,7 @@ namespace BTS {
     virtual void done() = 0;
   };
 
+#ifndef __arm__
   class Recorder : public Script {
     SizedPacket<50000> script;
 
@@ -60,8 +61,10 @@ namespace BTS {
     virtual void configure(uint32_t baud, flow_control control);
     virtual void call(const char *filename);
     virtual void comment(const char *text);
+    virtual void error(const char *reason) = 0;
     virtual void done();
   };
+#endif
 
   class Player : public Script {
   protected:
@@ -73,6 +76,7 @@ namespace BTS {
     virtual void header(script_header &h);
   };
 
+#ifdef __arm__
   class H4Player : public Player, public H4Controller {
     H4Tranceiver &h4;
     uint16_t last_opcode;
@@ -94,6 +98,7 @@ namespace BTS {
 
     bool is_complete() const {return script.get_remaining() > 0;}
   };
+#endif
 };
 
 

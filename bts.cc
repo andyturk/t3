@@ -1,5 +1,11 @@
 #include "bts.h"
 
+#ifndef __arm__
+#include <cstdio>
+#include <iostream>
+using namespace std;
+#endif
+
 namespace BTS {
   void Recorder::header(script_header &h) {
     script.write((uint8_t *) &h, sizeof(h));
@@ -31,6 +37,9 @@ namespace BTS {
 
   void Recorder::done() {
     // nothing to do
+  }
+
+  void Recorder::error(const char *reason) {
   }
 
   void Player::reset(const uint8_t *bytes, uint16_t length) {
@@ -101,6 +110,7 @@ namespace BTS {
     }
   }
 
+#ifdef __arm__
   H4Player::H4Player(H4Tranceiver &h) :
     h4(h)
   {
@@ -160,4 +170,10 @@ namespace BTS {
 
     action.reset();
   }
+#endif
 };
+
+#ifndef __arm__
+int main(int argc, char *argv[]) {
+}
+#endif
