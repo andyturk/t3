@@ -21,7 +21,7 @@ class Screen {
   void initialize();
   void clear();
   void text(const char *chars);
-  void printf_(const char *format, ...);
+  void debug_(const char *format, ...);
 
   static Screen the_screen;
 };

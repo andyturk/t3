@@ -132,7 +132,7 @@ class Packet : public Ring<Packet>, public FlipBuffer {
 
     if (title) {
 #ifdef DEBUG
-      printf("%s:\n", title);
+      debug("%s:\n", title);
       dump();
 #endif
       title = 0;
@@ -169,7 +169,7 @@ class Packet : public Ring<Packet>, public FlipBuffer {
     void dump_hex_bytes(uint8_t *, size_t);
 
     dump_hex_bytes((uint8_t *) *this, get_remaining());
-    printf("\n");
+    debug("\n");
   }
 };
 

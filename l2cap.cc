@@ -27,7 +27,7 @@ Channel *Channel::find(uint16_t id) {
 }
 
 void Channel::receive(Packet *p) {
-  printf("received data for channel 0x%04x\n", channel_id);
+  debug("received data for channel 0x%04x\n", channel_id);
   p->deallocate();
 }
 

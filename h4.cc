@@ -102,7 +102,7 @@ void H4Tranceiver::rx_packet_indicator() {
     break;
 
   case HCI::GO_TO_SLEEP_IND :
-    //printf("baseband wants to sleep!\n");
+    //debug("baseband wants to sleep!\n");
     rx->reset();
     break;
 
@@ -136,7 +136,7 @@ void H4Tranceiver::rx_queue_received_packet() {
   // be interrupted
 
   if (uart->can_read()) {
-    printf("warning: UART fifo not empty after received packet\n");
+    debug("warning: UART fifo not empty after received packet\n");
   }
 
   rx->flip();

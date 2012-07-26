@@ -50,7 +50,7 @@ extern "C" int main() {
   systick.configure();
 
   //  UARTStdioInitExpClk(0, 115200); // UART0 is the console
-  // printf("console initialized\n");
+  // debug("console initialized\n");
 
   //systick.initialize();
 

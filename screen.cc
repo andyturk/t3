@@ -74,7 +74,7 @@ void Screen::text(const char *chars) {
   GrFlush(&context);
 }
 
-void Screen::printf_(const char *format, ...) {
+void Screen::debug_(const char *format, ...) {
   va_list args;
   va_start(args, format);
   char buffer[256];

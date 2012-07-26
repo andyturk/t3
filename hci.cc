@@ -96,8 +96,8 @@ void BBand::default_event_handler(uint8_t event, Packet *p) {
     *p >> status >> handle >> reason;
     handle &= 0x0fff;
 
-    printf("disconnected 0x%04x (with status: 0x%02x) because 0x%02x\n", handle, status, reason);
-    printf("re-enabling LE advertising\n");
+    debug("disconnected 0x%04x (with status: 0x%02x) because 0x%02x\n", handle, status, reason);
+    debug("re-enabling LE advertising\n");
     p->hci(OPCODE_LE_SET_ADVERTISE_ENABLE) << (uint8_t) 0x01;
     send(p);
     return;
@@ -120,7 +120,7 @@ void BBand::default_event_handler(uint8_t event, Packet *p) {
 
     for (uint8_t i=0; i < number_of_handles; ++i) {
       /*
-      printf("connection 0x%04x completed %d packets\n",
+      debug("connection 0x%04x completed %d packets\n",
                  connection_handle[i],
                  num_of_completed_packets[i]);
       */
@@ -128,7 +128,7 @@ void BBand::default_event_handler(uint8_t event, Packet *p) {
     break;
   }
   default :
-    printf("discarding event 0x%02x\n", event);
+    debug("discarding event 0x%02x\n", event);
   }
 
   p->deallocate();
@@ -180,10 +180,10 @@ void BBand::le_event_handler(uint8_t subevent, Packet *p) {
     }
 
     const char *addr = peer_address.pretty_print();
-    printf("connection to %s completed with status %d\n", addr, status);
-    printf("  handle = 0x%04x, addr_type = %s\n", connection_handle, type);
-    printf("  role = %s, interval = %d, latency = %d, timeout = %d\n", role_name, conn_interval, conn_latency, supervision_timeout);
-    printf("  clock_accuracy = %d\n", master_clock_accuracy);
+    debug("connection to %s completed with status %d\n", addr, status);
+    debug("  handle = 0x%04x, addr_type = %s\n", connection_handle, type);
+    debug("  role = %s, interval = %d, latency = %d, timeout = %d\n", role_name, conn_interval, conn_latency, supervision_timeout);
+    debug("  clock_accuracy = %d\n", master_clock_accuracy);
     break;
   }
   case LE_EVENT_ADVERTISING_REPORT :
@@ -191,7 +191,7 @@ void BBand::le_event_handler(uint8_t subevent, Packet *p) {
   case LE_EVENT_READ_REMOTE_USED_FEATURES_COMPLETE :
   case LE_EVENT_LONG_TERM_KEY_REQUEST :
   default :
-    printf("ignoring unrecognized LE event: 0x%02x\n", subevent);
+    debug("ignoring unrecognized LE event: 0x%02x\n", subevent);
     break;
   }
 }
@@ -224,7 +224,7 @@ void BBand::standard_packet_handler(Packet *p) {
     if (channel) {
       channel->receive(p);
     } else {
-      printf("ACL packet for unknown channel: 0x%04x\n", cid);
+      debug("ACL packet for unknown channel: 0x%04x\n", cid);
       p->deallocate();
     }
     break;
@@ -233,7 +233,7 @@ void BBand::standard_packet_handler(Packet *p) {
   case COMMAND_PACKET :
   case SYNCHRONOUS_DATA_PACKET :
   default :
-    printf("discarding unknown packet of type %d\n", packet_indicator);
+    debug("discarding unknown packet of type %d\n", packet_indicator);
     p->deallocate();
   }
 }
@@ -288,7 +288,7 @@ void BBand::cold_boot(uint16_t opcode, Packet *p) {
     break;
 
   default :
-    printf("discarding unrecognized event packet (%02x) in during cold boot\n", opcode);
+    debug("discarding unrecognized event packet (%02x) in during cold boot\n", opcode);
     p->deallocate();
     p = 0;
   }
@@ -310,12 +310,12 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
 
     for (size_t i=0; i < command_length; ++i) p->put(cmd[i]);
     patch_state.offset += command_length;
-    //    printf("patch command %04x @ %d (%d)\n",
+    //    debug("patch command %04x @ %d (%d)\n",
     //               patch_state.expected_opcode, patch_state.offset - command_length, command_length);
     p->flip();
     send(p);
   } else {
-    printf("patching complete\n");
+    debug("patching complete\n");
     command_complete_handler = &warm_boot;
     warm_boot(0, p);
   }
@@ -343,7 +343,7 @@ const uint8_t warm_boot_patch[] = {
 */
 
 void BBand::normal_operation(uint16_t opcode, Packet *p) {
-  printf("OK 0x%04x\n", opcode);
+  debug("OK 0x%04x\n", opcode);
   p->deallocate();
 }
 
@@ -357,14 +357,14 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
       uint16_t ocf = opcode & 0x03ff;
       uint16_t ogf = opcode >> 10;
 
-      printf("bad command status (0x%x): ogf: %d ocf: 0x%04x\n", status, ogf, ocf);
+      debug("bad command status (0x%x): ogf: %d ocf: 0x%04x\n", status, ogf, ocf);
       for (;;);
     }
   }
 
   switch (opcode) {
   case 0 : {
-    printf("warm boot...\n");
+    debug("warm boot...\n");
     uint8_t deep_sleep_enable = 0x00;
     p->hci(OPCODE_SLEEP_MODE_CONFIGURATIONS) << (uint8_t) 0x01 << deep_sleep_enable;
     *p << (uint8_t) 0 << (uint32_t) 0xffffffff << (uint8_t) 100 << (uint8_t) 0;
@@ -380,9 +380,9 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   case OPCODE_READ_BD_ADDR :
     p->read(bd_addr.data, sizeof(bd_addr.data));
 
-    printf("bd_addr = ");
-    for (int i=5; i >= 0; --i) printf("%02x:", bd_addr.data[i]);
-    printf("\n");
+    debug("bd_addr = ");
+    for (int i=5; i >= 0; --i) debug("%02x:", bd_addr.data[i]);
+    debug("\n");
 
     p->hci(OPCODE_READ_BUFFER_SIZE_COMMAND);
     break;
@@ -397,7 +397,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     // p->fget("2122", &acl_data_length, &synchronous_data_length,
     //                    &num_acl_packets, &num_synchronous_packets);
 
-    printf("acl: %d @ %d, synchronous: %d @ %d\n",
+    debug("acl: %d @ %d, synchronous: %d @ %d\n",
                num_acl_packets, acl_data_length,
                num_synchronous_packets, synchronous_data_length);
 
@@ -417,7 +417,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     *p >> timeout;
     //p->fget("2", &timeout);
     uint32_t usec = timeout*625;
-    printf("page timeout = %d.%d msec\n", usec/1000, usec%1000);
+    debug("page timeout = %d.%d msec\n", usec/1000, usec%1000);
 
     char local_name[248];
     strncpy(local_name, "Super Whizzy Gizmo 1.0", sizeof(local_name));
@@ -430,62 +430,62 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   }
 
   case OPCODE_WRITE_LOCAL_NAME_COMMAND :
-    printf("local name set\n");
+    debug("local name set\n");
     p->hci(OPCODE_WRITE_SCAN_ENABLE) << (uint8_t) 0x03;
     //p->command(OPCODE_WRITE_SCAN_ENABLE, "1", 0x03);
     break;
 
   case OPCODE_WRITE_SCAN_ENABLE :
-    printf("local scans enabled\n");
+    debug("local scans enabled\n");
     // http://bluetooth-pentest.narod.ru/software/bluetooth_class_of_device-service_generator.html
     p->hci(OPCODE_WRITE_CLASS_OF_DEVICE) << (uint32_t) 0x0098051c;
     // p->command(OPCODE_WRITE_CLASS_OF_DEVICE, "4", 0x0098051c);
     break;
 
   case OPCODE_WRITE_CLASS_OF_DEVICE :
-    printf("device class set\n");
+    debug("device class set\n");
     p->hci(OPCODE_SET_EVENT_MASK) << (uint32_t) 0xffffffff << (uint32_t) 0x20001fff;
     // p->command(OPCODE_SET_EVENT_MASK, "44", 0xffffffff, 0x20001fff);
     break;
 
   case OPCODE_SET_EVENT_MASK :
-    printf("event mask set\n");
+    debug("event mask set\n");
     p->hci(OPCODE_WRITE_LE_HOST_SUPPORT) << (uint8_t) 1 << (uint8_t) 1;
     //p->reset();
     //p->command(OPCODE_WRITE_LE_HOST_SUPPORT, "11", 1, 1);
     break;
 
   case OPCODE_WRITE_LE_HOST_SUPPORT :
-    printf("host support written\n");
+    debug("host support written\n");
     p->hci(OPCODE_LE_SET_EVENT_MASK) << (uint32_t) 0x0000001f << (uint32_t) 0x00000000;
     //p->command(OPCODE_LE_SET_EVENT_MASK, "44", 0x0000001f, 0x00000000);
     break;
 
   case OPCODE_LE_SET_EVENT_MASK :
-    printf("event mask set\n");
+    debug("event mask set\n");
     p->hci(OPCODE_LE_READ_BUFFER_SIZE);
     break;
 
   case OPCODE_LE_READ_BUFFER_SIZE : {
-    printf("buffer size read\n");
+    debug("buffer size read\n");
     uint16_t le_data_packet_length;
     uint8_t num_le_packets;
 
     *p >> le_data_packet_length >> num_le_packets;
-    printf("le_data_packet_length = %d, num_packets = %d\n", le_data_packet_length, num_le_packets);
+    debug("le_data_packet_length = %d, num_packets = %d\n", le_data_packet_length, num_le_packets);
 
     p->hci(OPCODE_LE_READ_SUPPORTED_STATES);
     break;
   }
 
   case OPCODE_LE_READ_SUPPORTED_STATES : {
-    printf("supported states read\n");
+    debug("supported states read\n");
 
     uint8_t states[8];
     p->read(states, sizeof(states));
-    printf("states = 0x");
-    for (int i=0; i < 8; ++i) printf("%02x", states[i]);
-    printf("\n");
+    debug("states = 0x");
+    for (int i=0; i < 8; ++i) debug("%02x", states[i]);
+    debug("\n");
 
     p->hci(OPCODE_LE_SET_ADVERTISING_PARAMETERS) << (uint16_t) 0x0800 << (uint16_t) 0x4000;
     *p << (uint8_t) 0 << (uint8_t) 0 << (uint8_t) 0;
@@ -494,7 +494,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   }
     
   case OPCODE_LE_SET_ADVERTISING_PARAMETERS : {
-    printf("advertising parameters set\n");
+    debug("advertising parameters set\n");
     // https://www.bluetooth.org/Technical/AssignedNumbers/generic_access_profile.htm
     // AD #1, data type (0x01) <<Flags>>
     // AD #2, data type (0x02) <<Incomplete list of 16-bit service UUIDs>>
@@ -536,7 +536,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   }
     
   case OPCODE_LE_SET_ADVERTISING_DATA : {
-    printf("advertising data set\n");
+    debug("advertising data set\n");
 
     p->hci(OPCODE_LE_SET_SCAN_RESPONSE_DATA) << (uint8_t) 0;
     assert(p->get_remaining() > 31);
@@ -568,12 +568,12 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
   }
     
   case OPCODE_LE_SET_SCAN_RESPONSE_DATA :
-    printf("response data set\n");
+    debug("response data set\n");
     p->hci(OPCODE_LE_SET_ADVERTISE_ENABLE) << (uint8_t) 0x01;
     break;
 
   case OPCODE_LE_SET_ADVERTISE_ENABLE :
-    printf("warm boot finished\n");
+    debug("warm boot finished\n");
     command_complete_handler = &normal_operation;
 
     p->deallocate();
@@ -581,7 +581,7 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
     break;
 
   default :
-    printf("discarding unrecognized event packet (%02x) in during cold boot\n", opcode);
+    debug("discarding unrecognized event packet (%02x) in during cold boot\n", opcode);
     p->deallocate();
     p = 0;
   }

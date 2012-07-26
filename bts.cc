@@ -7,6 +7,7 @@ using namespace std;
 #endif
 
 namespace BTS {
+#ifndef __arm__
   void Recorder::header(script_header &h) {
     script.write((uint8_t *) &h, sizeof(h));
   }
@@ -41,6 +42,7 @@ namespace BTS {
 
   void Recorder::error(const char *reason) {
   }
+#endif
 
   void Player::reset(const uint8_t *bytes, uint16_t length) {
     script.initialize((uint8_t *) bytes, length);

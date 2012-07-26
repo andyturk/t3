@@ -54,9 +54,9 @@ void AttributeBase::dump_attributes() {
   for (int i=1; i < next_handle; ++i) {
     AttributeBase *attr = all_handles[i];
 
-    printf("%04x %s: (%d) ", attr->handle, attr->type.pretty_print(), attr->length);
+    debug("%04x %s: (%d) ", attr->handle, attr->type.pretty_print(), attr->length);
     dump_hex_bytes((uint8_t *) attr->_data, attr->length);
-    printf("\n");
+    debug("\n");
   }
 }
 #endif
@@ -280,7 +280,7 @@ void ATT_Channel::receive(Packet *p) {
     uint8_t error_code;
 
     *p >> req_opcode >> h1 >> error_code;
-    printf("ATT error for opcode: 0x%02x, handle: 0x%04x, error: 0x%02x\n",
+    debug("ATT error for opcode: 0x%02x, handle: 0x%04x, error: 0x%02x\n",
            req_opcode, h1, error_code);
     break;
   }
@@ -290,13 +290,13 @@ void ATT_Channel::receive(Packet *p) {
     *req >> client_rx_mtu;
     rsp = req;
     rsp->l2cap() << rsp_opcode << att_mtu;
-    printf("ATT: client MTU = %d\n", client_rx_mtu);
+    debug("ATT: client MTU = %d\n", client_rx_mtu);
     break;
 
   case ATT::OPCODE_FIND_INFORMATION_REQUEST :
     rsp_opcode = ATT::OPCODE_FIND_INFORMATION_RESPONSE;
     if (!read_handles()) break;
-    printf("ATT: find information %04x-%04x\n", h1, h2);
+    debug("ATT: find information %04x-%04x\n", h1, h2);
     find_information();
     break;
 
@@ -304,7 +304,7 @@ void ATT_Channel::receive(Packet *p) {
     rsp_opcode = ATT::OPCODE_FIND_BY_TYPE_VALUE_RESPONSE;
     if (!read_handles()) break;
     if (!read_type()) break;
-    printf("ATT: find %04x-%04x by type: %s, value: (%d bytes)\n",
+    debug("ATT: find %04x-%04x by type: %s, value: (%d bytes)\n",
            h1, h2, type.pretty_print(), p->get_remaining());
     find_by_type_value();
     break;
@@ -313,7 +313,7 @@ void ATT_Channel::receive(Packet *p) {
     rsp_opcode = ATT::OPCODE_READ_BY_TYPE_RESPONSE;
     if (!read_handles()) break;
     if (!read_type()) break;
-    printf("ATT: read %04x-%04x by type: %s\n", h1, h2, type.pretty_print());
+    debug("ATT: read %04x-%04x by type: %s\n", h1, h2, type.pretty_print());
     read_by_type();
     break;
 
@@ -321,14 +321,14 @@ void ATT_Channel::receive(Packet *p) {
     rsp_opcode = ATT::OPCODE_READ_BY_GROUP_TYPE_RESPONSE;
     if (!read_handles()) break;
     if (!read_type()) break;
-    printf("ATT: read %04x-%04x by group type: %s\n", h1, h2, type.pretty_print());
+    debug("ATT: read %04x-%04x by group type: %s\n", h1, h2, type.pretty_print());
     read_by_group_type();
     break;
 
   case ATT::OPCODE_READ_REQUEST :
     rsp_opcode = ATT::OPCODE_READ_RESPONSE;
     *req >> h1;
-    printf("ATT: read handle 0x%04x\n", h1);
+    debug("ATT: read handle 0x%04x\n", h1);
 
     if (!(attr = AttributeBase::get(h1))) {
       error(ATT::INVALID_HANDLE);
@@ -360,7 +360,7 @@ void ATT_Channel::receive(Packet *p) {
     break;
 
   default :
-    printf("unrecognized att opcode: 0x%02x\n", req_opcode);
+    debug("unrecognized att opcode: 0x%02x\n", req_opcode);
     break;
   }
 

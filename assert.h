@@ -3,10 +3,10 @@
 #ifdef DEBUG
 #include "utils/uartstdio.h"
 #include "screen.h"
-// #define printf(...) UARTprintf(__VA_ARGS__)
-#define printf(...) Screen::the_screen.printf_(__VA_ARGS__)
+// #define debug(...) UARTdebug(__VA_ARGS__)
+#define debug(...) Screen::the_screen.debug_(__VA_ARGS__)
 #else
-#define printf(...) 
+#define debug(...) 
 #endif
 
 #define assert(x) do {if(!(x)) for(;;);} while (0)
