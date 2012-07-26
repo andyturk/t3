@@ -49,6 +49,11 @@ class Packet : public Ring<Packet>, public FlipBuffer {
   const char *title;
   Ring<Packet> *free_packets;
 
+ Packet() :
+  title(0),
+  free_packets(0)
+ {}
+
   Packet(uint8_t *buf, uint16_t len) :
     FlipBuffer(buf, len),
     title(0),

@@ -136,7 +136,7 @@ namespace BTS {
             last_opcode = 0;
             command_succeeded(opcode, p);
 
-            if (!complete()) play_next_action();
+            if (!is_complete()) play_next_action();
             return;
           }
         }
@@ -144,7 +144,7 @@ namespace BTS {
     }
 
     status = HCI::COMMAND_DISALLOWED;
-    script->set_position(script->get_limit());
+    script.seek(script.get_limit());
   }
 
   void H4Player::send(Packet &action) {
