@@ -8,7 +8,7 @@ BTS = $(BUILD)/bts
 
 vpath $(OBJ)
 
-default : $(BTS)
+default : $(BUILD)/patch.cc
 
 clean :
 	rm -rf $(BUILD)
