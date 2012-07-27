@@ -66,7 +66,7 @@ namespace BTS {
     virtual void configure(uint32_t baud, flow_control control);
     virtual void call(const char *filename);
     virtual void comment(const char *text);
-    virtual void error(const char *reason) = 0;
+    virtual void error(const char *reason);
     virtual void done();
   };
 #endif
@@ -85,14 +85,47 @@ namespace BTS {
   };
 
 #ifndef __arm__
-  class StreamlineForDevice : public Player {
+  class Filter : public Player {
   protected:
-    const char *declaration_name;
+    Script *dst;
+
+  public:
+    Filter(Script *s) : dst(s) {}
+
+    virtual void header(script_header &h) { dst->header(h); }
+    virtual void send(Packet &action) { dst->send(action); }
+    virtual void expect(uint32_t msec, Packet &action) { dst->expect(msec, action); }
+    virtual void configure(uint32_t baud, flow_control control) { dst->configure(baud, control); }
+    virtual void call(const char *filename) { dst->call(filename); }
+    virtual void comment(const char *text) { dst->comment(text); }
+    virtual void error(const char *reason) { dst->error(reason); }
+    virtual void done() { dst->done(); }
+    
+    void copy(const uint8_t *bytes, uint16_t length, Script &s) {
+      Filter f(&s);
+
+      f.reset(bytes, length);
+      while (!f.is_complete()) f.play_next_action();
+    }
+  };
+
+  class ExpectationMinimizer : public Filter {
+  protected:
+    uint16_t hci_opcode;
+
+  public:
+    ExpectationMinimizer(Script *s);
+    virtual void send(Packet &action);
+    virtual void expect(uint32_t msec, Packet &action);
+  };
+
+  class SourceGenerator : public Player {
+  protected:
     void as_hex(const uint8_t *bytes, uint16_t size, const char *start = 0);
 
   public:
-    StreamlineForDevice(const char *n);
-    ~StreamlineForDevice();
+    SourceGenerator(const char *n);
+    ~SourceGenerator();
 
     void emit(const uint8_t *bytes, uint16_t size);
     virtual void send(Packet &action);
