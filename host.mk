@@ -1,16 +1,19 @@
-BUILD = build/host
+BUILD = build
+OBJ = $(BUILD)/host
 BTS_SOURCES = bts.cc
-BTS_OBJECTS = $(addsuffix .o,$(addprefix $(BUILD)/,$(basename $(BTS_SOURCES))))
+BTS_OBJECTS = $(addsuffix .o,$(addprefix $(OBJ)/,$(basename $(BTS_SOURCES))))
 CFLAGS += -g
 
-vpath $BUILD
+BTS = $(BUILD)/bts
 
-default : $(BUILD)/bts
+vpath $(OBJ)
+
+default : $(BTS)
 
 clean :
 	rm -rf $(BUILD)
 
-$(BUILD)/%.o : %.cc $(BUILD)/.sentinel
+$(OBJ)/%.o : %.cc $(OBJ)/.sentinel
 	$(CXX) -c $(CFLAGS) $< -o $@
 
 .PRECIOUS : %/.sentinel
@@ -19,5 +22,8 @@ $(BUILD)/%.o : %.cc $(BUILD)/.sentinel
 	mkdir -p $(dir $@)
 	touch $@
 
-$(BUILD)/bts : $(BTS_OBJECTS)
-	$(CXX) -o $(BUILD)/bts $(BTS_OBJECTS)
+$(BTS) : $(BTS_OBJECTS)
+	$(CXX) -o $(BTS) $(BTS_OBJECTS)
+
+$(BUILD)/patch.cc : $(BTS) bluetooth_init_cc2564_2.1.bts $(BUILD)/.sentinel
+	$(BTS) ./bluetooth_init_cc2564_2.1.bts >$(BUILD)/patch.cc

@@ -15,27 +15,34 @@ namespace BTS {
   }
 
   void Recorder::send(Packet &action) {
-    uint16_t length = action.get_remaining();
+    const uint16_t length = action.get_remaining();
     script << (uint16_t) SEND_COMMAND << length;
     script.write((uint8_t *) action, length);
   }
 
   void Recorder::expect(uint32_t msec, Packet &action) {
-    uint16_t length = action.get_remaining();
-    script << (uint16_t) WAIT_EVENT << msec << length;
-    script.write((uint8_t *) action, length);
+    const uint16_t length2 = action.get_remaining();
+    const uint32_t length4 = length2 + 2*sizeof(uint32_t);
+    script << (uint16_t) WAIT_EVENT << length2;
+    script << msec << length2;
+    script.write((uint8_t *) action, length2);
   }
 
   void Recorder::configure(uint32_t baud, flow_control control) {
-    script << (uint16_t) SERIAL_PORT_PARAMETERS << (uint16_t) sizeof(configuration) << baud << control;
+    const uint16_t length = sizeof(configuration);
+    script << (uint16_t) SERIAL_PORT_PARAMETERS << length << baud << control;
   }
 
   void Recorder::call(const char *filename) {
-    // not implemented
+    const uint16_t length = strlen(filename);
+    script << (uint16_t) RUN_SCRIPT << length;
+    script.write((const uint8_t *) filename, length);
   }
 
   void Recorder::comment(const char *text) {
-    // not implemented
+    const uint16_t length = strlen(text);
+    script << (uint16_t) RUN_SCRIPT << length;
+    script.write((const uint8_t *) text, length);
   }
 
   void Recorder::done() {
@@ -276,21 +283,41 @@ namespace BTS {
 
 
 #ifndef __arm__
-int main(int argc, char *argv[]) {
-  ifstream bts_file("bluetooth_init_cc2564_2.1.bts");
+void bluetooth_init_cc2564_raw(const char *file, uint8_t *&value, size_t &size) {
+  value = 0;
+  size = 0;
+
+  ifstream bts_file(file, ios::in | ios::binary | ios::ate);
+
   if (bts_file.is_open()) {
     bts_file.seekg(0, ios::end);
-    size_t size = bts_file.tellg();
+    size = bts_file.tellg();
     bts_file.seekg(0, ios::beg);
 
-    char *bytes = new char[size];
-    bts_file.read(bytes, size);
-
-    BTS::StreamlineForDevice streamliner("bootstrap_bts");
-
-    streamliner.emit((uint8_t *) bytes, size);
-
-    delete[] bytes;
+    value = new uint8_t[size];
+    bts_file.read((char *) value, size);
   }
+}
+
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    cerr << "usage: bts filename\n";
+    exit(1);
+  }
+
+  uint8_t *raw_patch;
+  size_t raw_patch_size;
+
+  bluetooth_init_cc2564_raw(argv[1], raw_patch, raw_patch_size);
+
+  if (raw_patch == 0 || raw_patch_size == 0) {
+    cerr << "couldn't load " << argv[1] << endl;
+    exit(1);
+  }
+
+  BTS::StreamlineForDevice streamliner("bluetooth_init_cc2564");
+  streamliner.emit(raw_patch, raw_patch_size);
+
+  delete raw_patch;
 }
 #endif
