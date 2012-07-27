@@ -1,3 +1,6 @@
+BUILD = build
+OBJ = $(BUILD)/device
+BIN = $(OBJ)
 NAME = t
 
 TRIPLE = arm-none-eabi
@@ -17,8 +20,8 @@ QPCPP = ../qpcpp
 STELLARISWARE = ../StellarisWare
 
 C_SOURCES = $(wildcard *.c)
-CC_SOURCES = $(wildcard *.cc) vector_table.cc
-OBJECTS = $(sort $(notdir $(C_SOURCES:.c=.o) $(CC_SOURCES:.cc=.o)))
+CC_SOURCES = $(wildcard *.cc) $(BUILD)/vector_table.cc
+OBJECTS = $(addprefix $(OBJ)/,$(sort $(notdir $(C_SOURCES:.c=.o) $(CC_SOURCES:.cc=.o))))
 
 STELLARIS = ../StellarisWare
 
@@ -31,12 +34,20 @@ CFLAGS += -Wno-pmf-conversions -Wno-psabi -std=gnu++0x
 
 LDFLAGS = -nostdlib -fno-builtin -nostartfiles -nodefaultlibs -T lm3s9d96.ld
 
-vpath %.c . $(TI_CMSIS)/Source
+vpath %.c . $(BUILD) $(TI_CMSIS)/Source
+vpath %.cc . $(BUILD)
 
-default : $(NAME).bin
+default : $(BIN)/$(NAME).bin
 
 clean :
+	rm -rf $(BUILD)
 	rm -rf *.o *.bin *.elf *.asm *.a *.pp vector_table.cc
+
+.PRECIOUS : %/.sentinel
+
+%/.sentinel :
+	mkdir -p $(dir $@)
+	touch $@
 
 %.pp : %.c
 	$(CC) -c $(CFLAGS) -std=c99 -E $< -o $@
@@ -44,24 +55,24 @@ clean :
 %.pp : %.cc
 	$(CC) -c $(CFLAGS)  -E $< -o $@
 
-%.o : %.c
+$(OBJ)/%.o : %.c $(OBJ)/.sentinel
 	$(CC) -c $(CFLAGS) -std=c99 $< -o $@
 
-%.o : %.cc
+$(OBJ)/%.o : %.cc $(OBJ)/.sentinel
 	$(CC) -c $(CFLAGS) -fno-rtti -fno-exceptions $< -o $@
 
-%.S : %.cc
+$(BUILD)/%.S : %.cc $(BUILD)/.sentinel
 	$(CC) -S -c $(CFLAGS) -fno-rtti -fno-exceptions $< -o $@
 
-%.o : %.S
+$(OBJ)/%.o : %.S $(OBJ)/.sentinel
 	$(AS) $< -o $@
 
-vector_table.cc : generate_vector_table.py
-	python generate_vector_table.py lm3s9d96 > vector_table.cc
+$(BUILD)/vector_table.cc : generate_vector_table.py $(BUILD)/.sentinel
+	python generate_vector_table.py lm3s9d96 > $(BUILD)/vector_table.cc
 
-$(NAME).bin : $(NAME).elf
+$(BIN)/$(NAME).bin : $(BIN)/$(NAME).elf $(BIN)/.sentinel
 	$(OBJCOPY) -Obinary $< $@
 
-$(NAME).elf : $(OBJECTS) lm3s9d96.ld 
-	$(CC) $(LDFLAGS) -o $(NAME).elf $(OBJECTS) -L$(ARMLIBS) -L. -lstellaris
-	$(OBJDUMP) -d $(NAME).elf >$(NAME).asm
+$(BIN)/$(NAME).elf : $(OBJECTS) lm3s9d96.ld $(BIN)/.sentinel
+	$(CC) $(LDFLAGS) -o $(BIN)/$(NAME).elf $(OBJECTS) -L$(ARMLIBS) -L. -lstellaris
+	$(OBJDUMP) -d $(BIN)/$(NAME).elf >$(BUILD)/$(NAME).asm
