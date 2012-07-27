@@ -20,6 +20,7 @@ class FlipBuffer {
   FlipBuffer(uint8_t *s, uint16_t c) : storage(s), capacity(c), position(0), limit(c) {}
   uint16_t get_capacity() const {return capacity;}
   uint16_t get_position() const {return position;}
+  uint16_t tell() const {return position;}
   uint16_t get_limit() const {return limit;}
   uint16_t get_remaining() const {return limit - position;}
   uint8_t *ptr() {return storage + position;}
@@ -34,7 +35,7 @@ class FlipBuffer {
   void reset(uint16_t lim=0) {position = 0; limit = (lim == 0) ? capacity : lim;}
   void flip() {limit = position; position = 0;}
   void unflip() {position = limit; limit = capacity;}
-  void rewind() {position = 0;}
+  void rewind(uint16_t p = 0) {position = p;}
   void seek(uint16_t p) {position = p;}
   void skip(int offset) {position += offset;}
   
