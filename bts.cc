@@ -7,6 +7,12 @@ using namespace std;
 #endif
 
 #include "bts.h"
+#include "hal.h"
+
+#ifdef __arm__
+extern uint8_t bluetooth_init_cc2564[];
+extern size_t bluetooth_init_cc2564_size;
+#endif
 
 namespace BTS {
 #ifndef __arm__
@@ -89,6 +95,7 @@ namespace BTS {
           uint8_t indicator;
           uint16_t p = command.get_position();
           command >> indicator >> last_opcode;
+          debug("sending 0x%04x\n", last_opcode);
           command.seek(p);
         }
         send(command);
@@ -167,8 +174,23 @@ namespace BTS {
     hci_opcode = 0;
   }
 
-  SourceGenerator::SourceGenerator(const char *name) {
-    cout << "const uint8_t " << name << "[] = {\n";
+  SourceGenerator::SourceGenerator(const char *n) :
+    name(n)
+  {
+    cout << "#include <stdint.h>\n";
+    cout << "extern \"C\" const uint8_t " << name << "[] = {\n";
+
+    script_header sh;
+    memset(&sh, 0, sizeof(sh));
+    sh.magic = BTSB;
+
+    as_hex((const uint8_t *) &sh, sizeof(sh));
+  }
+
+  SourceGenerator::~SourceGenerator() {
+    cout << "};\n";
+    cout << "extern \"C\" const uint32_t " << name << "_size = sizeof(" << name << ");\n";
+    
   }
 
   void SourceGenerator::emit(const uint8_t *bytes, uint16_t size) {
@@ -187,10 +209,6 @@ namespace BTS {
       cout << "\n";
     }
     cout << dec;
-  }
-
-  SourceGenerator::~SourceGenerator() {
-    cout << "};\n";
   }
 
   void SourceGenerator::send(Packet &action) {
@@ -259,8 +277,13 @@ namespace BTS {
   void H4Player::command_succeeded(uint16_t opcode, Packet *p) {
   }
 
+  void H4Player::play_next_action() {
+    Player::play_next_action();
+    h4.fill_uart();
+  }
+
   void H4Player::received(Packet *p) {
-    uint8_t indicator, event, command_packet_budget;
+    uint8_t indicator, event, parameter_length, command_packet_budget;
     uint16_t opcode;
 
     *p >> indicator;
@@ -268,7 +291,9 @@ namespace BTS {
       *p >> event;
 
       if (event == HCI::EVENT_COMMAND_COMPLETE) {
-        *p >> command_packet_budget >> opcode >> status;
+        *p >> parameter_length >> command_packet_budget >> opcode >> status;
+
+        debug("0x%04x completed with status %d\n", opcode, status);
 
         if (last_opcode == 0 || last_opcode == opcode) {
           if (status == HCI::SUCCESS) {
@@ -298,6 +323,34 @@ namespace BTS {
     assert(indicator == HCI::COMMAND_PACKET);
 
     action.reset();
+  }
+
+  void H4Player::configure(uint32_t baud, flow_control control) {
+    h4.uart->set_baud(baud);
+    assert(control == HARDWARE || control == NO_CHANGE);
+    play_next_action();
+  }
+
+  void H4Player::done() {
+    for(;;);
+  }
+
+
+  void H4Player::go() {
+  __asm("cpsid i");
+    H4Controller *saved = h4.get_controller();
+    h4.set_controller(this);
+  __asm("cpsie i");
+
+  reset(bluetooth_init_cc2564, bluetooth_init_cc2564_size);
+
+  while (!is_complete()) {
+    asm volatile ("wfi");
+  }
+
+  __asm("cpsid i");
+    h4.set_controller(saved);
+  __asm("cpsie i");
   }
 #endif
 };
@@ -347,9 +400,9 @@ int main(int argc, char *argv[]) {
   p.hci(HCI::OPCODE_READ_LOCAL_VERSION_INFORMATION).flip();
   code.send(p);
 
-  code.comment("Change baud rate to 921600 since we'll be downloading large patches");
-  (p.hci(HCI::OPCODE_PAN13XX_CHANGE_BAUD_RATE) << (uint32_t) 921600L).flip();
-  code.send(p);
+  // code.comment("Change baud rate to 921600 since we'll be downloading large patches");
+  // (p.hci(HCI::OPCODE_PAN13XX_CHANGE_BAUD_RATE) << (uint32_t) 921600L).flip();
+  // code.send(p);
 
   // send OEM patch
   code.comment(argv[1]);

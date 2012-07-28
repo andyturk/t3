@@ -19,8 +19,9 @@ ARM_CMSIS = /Users/andy/Downloads/CMSIS_V3P00/CMSIS
 QPCPP = ../qpcpp
 STELLARISWARE = ../StellarisWare
 
-C_SOURCES = $(wildcard *.c)
-CC_SOURCES = $(wildcard *.cc) $(BUILD)/vector_table.cc
+GENERATED = vector_table.cc patch.cc
+C_SOURCES = $(wildcard *.c) $(wildcard $(BUILD)/*.c)
+CC_SOURCES = $(wildcard *.cc) $(wildcard $(BUILD)/*.cc) $(addprefix $(BUILD)/,$(GENERATED))
 OBJECTS = $(addprefix $(OBJ)/,$(sort $(notdir $(C_SOURCES:.c=.o) $(CC_SOURCES:.cc=.o))))
 
 STELLARIS = ../StellarisWare
@@ -63,6 +64,11 @@ $(OBJ)/%.o : %.cc $(OBJ)/.sentinel
 
 $(BUILD)/%.S : %.cc $(BUILD)/.sentinel
 	$(CC) -S -c $(CFLAGS) -fno-rtti -fno-exceptions $< -o $@
+
+$(OBJ)/patch.o : $(BUILD)/patch.cc
+
+$(BUILD)/patch.cc :
+	$(MAKE) -f host.mk $@
 
 $(OBJ)/%.o : %.S $(OBJ)/.sentinel
 	$(AS) $< -o $@

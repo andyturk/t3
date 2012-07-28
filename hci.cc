@@ -4,6 +4,7 @@
 #include "cc_stubs.h"
 #include "h4.h"
 #include "assert.h"
+#include "bts.h"
 
 using namespace HCI;
 
@@ -38,12 +39,12 @@ BBand::BBand(UART &u, IOPin &s) :
 }
 
 void BBand::initialize() {
+  BTS::H4Player boot(h4);
   extern H4Tranceiver h4;
 
-  shutdown.set_value(0); // assert SHUTDOWN
   uart.set_enable(false);
-  uart.set_fifo_enable(false);
-  uart.set_fifo_enable(true);
+  uart.set_interrupt_enable(false);
+  shutdown.set_value(0); // assert SHUTDOWN
   uart.set_baud(115200);
   uart.set_enable(true);
 
@@ -56,6 +57,7 @@ void BBand::initialize() {
   uart.set_interrupt_enable(true);
 
   CPU::delay(150); // wait 150 msec
+  boot.go();
   cold_boot(0, 0);
 }
 

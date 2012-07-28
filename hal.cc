@@ -162,7 +162,8 @@ void UART::initialize() {
 }
 
 void UART::set_enable(bool value) {
-  UARTEnable((uint32_t) base);
+  if (value) UARTEnable((uint32_t) base);
+  else       UARTDisable((uint32_t) base);
 }
 
 void UART::set_fifo_enable(bool value) {
@@ -171,8 +172,13 @@ void UART::set_fifo_enable(bool value) {
 }
 
 void UART::set_baud(uint32_t bps) {
-  UARTConfigSetExpClk((uint32_t) base, SysCtlClockGet(), bps,
+  uint32_t system_clock_rate = SysCtlClockGet();
+
+  UARTConfigSetExpClk((uint32_t) base, system_clock_rate, bps,
                       UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE);
+  uint32_t actual_baud, config;
+  UARTConfigGetExpClk((uint32_t) base, system_clock_rate, &actual_baud, &config);
+  actual_baud = actual_baud;
 }
 
 bool UART::can_read() {
@@ -371,6 +377,7 @@ UART1::UART1() : UART(1)
 }
 
 void UART1::configure() {
+  SysCtlPeripheralReset(SYSCTL_PERIPH_UART1);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC); // UART1 Tx and RX
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOJ); // UART1 RTS/CTS
   SysCtlPeripheralEnable(SYSCTL_PERIPH_UART1); // clock UART1

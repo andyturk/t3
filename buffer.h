@@ -114,7 +114,7 @@ class RingBuffer {
 
   void skip(uint32_t offset) {
     ptrdiff_t capacity = limit - storage;
-    assert(abs(offset) < capacity);
+    assert(abs((ptrdiff_t) offset) < capacity);
     read_position += offset;
     if (read_position > limit) read_position -= capacity;
   }

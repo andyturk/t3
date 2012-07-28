@@ -13,9 +13,11 @@ class H4Controller {
 };
 
 class H4Tranceiver {
+ public:
   UART *const uart;
   H4Controller *controller;
 
+ private:
   Packet *rx;
   SizedPacket<1> indicator;
 

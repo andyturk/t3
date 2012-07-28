@@ -79,7 +79,7 @@ namespace BTS {
   public:
     Player();
     virtual void reset(const uint8_t *bytes, uint16_t length);
-    void play_next_action();
+    virtual void play_next_action();
     virtual void header(script_header &h);
     bool is_complete() const {return script.get_remaining() == 0;}
   };
@@ -121,6 +121,7 @@ namespace BTS {
 
   class SourceGenerator : public Player {
   protected:
+    const char *name;
     void as_hex(const uint8_t *bytes, uint16_t size, const char *start = 0);
 
   public:
@@ -149,6 +150,7 @@ namespace BTS {
   public:
     H4Player(H4Tranceiver &h);
 
+    void go();
     virtual void command_succeeded(uint16_t opcode, Packet *p);
 
     // H4Controller methods
@@ -157,7 +159,15 @@ namespace BTS {
 
     // Player methods
     virtual void reset(const uint8_t *bytes, uint16_t length);
+    virtual void play_next_action();
     virtual void send(Packet &p);
+    virtual void expect(uint32_t msec, Packet &p) {}
+    virtual void configure(uint32_t baud, flow_control control);
+    virtual void call(const char *filename) {}
+    virtual void comment(const char *text) {}
+    virtual void done();
+    virtual void error(const char *text) {}
+
   };
 #endif
 };

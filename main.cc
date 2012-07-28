@@ -47,6 +47,7 @@ extern "C" int main() {
   pc4.configure();
   //uart0.configure();
   uart1.configure();
+  uart1.initialize();
   systick.configure();
 
   //  UARTStdioInitExpClk(0, 115200); // UART0 is the console
