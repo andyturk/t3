@@ -15,51 +15,6 @@ extern size_t bluetooth_init_cc2564_size;
 #endif
 
 namespace BTS {
-#ifndef __arm__
-  void Recorder::header(script_header &h) {
-    script.write((uint8_t *) &h, sizeof(h));
-  }
-
-  void Recorder::send(Packet &action) {
-    action.prepare_for_tx();
-    const uint16_t length = action.get_remaining();
-    script << (uint16_t) SEND_COMMAND << length;
-    script.write((uint8_t *) action, length);
-  }
-
-  void Recorder::expect(uint32_t msec, Packet &action) {
-    const uint16_t length2 = action.get_remaining();
-    const uint32_t length4 = length2 + 2*sizeof(uint32_t);
-    script << (uint16_t) WAIT_EVENT << length2;
-    script << msec << length2;
-    script.write((uint8_t *) action, length2);
-  }
-
-  void Recorder::configure(uint32_t baud, flow_control control) {
-    const uint16_t length = sizeof(configuration);
-    script << (uint16_t) SERIAL_PORT_PARAMETERS << length << baud << control;
-  }
-
-  void Recorder::call(const char *filename) {
-    const uint16_t length = strlen(filename);
-    script << (uint16_t) RUN_SCRIPT << length;
-    script.write((const uint8_t *) filename, length);
-  }
-
-  void Recorder::comment(const char *text) {
-    const uint16_t length = strlen(text);
-    script << (uint16_t) RUN_SCRIPT << length;
-    script.write((const uint8_t *) text, length);
-  }
-
-  void Recorder::done() {
-    // nothing to do
-  }
-
-  void Recorder::error(const char *reason) {
-  }
-#endif
-
   Player::Player() : last_opcode(0) {
   }
 
@@ -136,7 +91,7 @@ namespace BTS {
   }
 
 #ifndef __arm__
-  ExpectationMinimizer::ExpectationMinimizer(Script *s) :
+  ExpectationMinimizer::ExpectationMinimizer(ScriptBase *s) :
     Filter(s)
   {
   }

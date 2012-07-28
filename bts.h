@@ -8,7 +8,7 @@
  */
 
 namespace BTS {
-  class Script {
+  class ScriptBase {
   public:
     enum magic {
       BTSB = 0x42535442 // 'BTSB'
@@ -53,25 +53,7 @@ namespace BTS {
     virtual void done() = 0;
   };
 
-#ifndef __arm__
-  class Recorder : public Script {
-    SizedPacket<50000> script;
-
-  public:
-    Recorder() {}
-
-    virtual void header(script_header &h);
-    virtual void send(Packet &action);
-    virtual void expect(uint32_t msec, Packet &action);
-    virtual void configure(uint32_t baud, flow_control control);
-    virtual void call(const char *filename);
-    virtual void comment(const char *text);
-    virtual void error(const char *reason);
-    virtual void done();
-  };
-#endif
-
-  class Player : public Script {
+  class Player : public ScriptBase {
   protected:
     Packet script, command;
     uint16_t last_opcode;
@@ -87,10 +69,10 @@ namespace BTS {
 #ifndef __arm__
   class Filter : public Player {
   protected:
-    Script *dst;
+    ScriptBase *dst;
 
   public:
-    Filter(Script *s) : dst(s) {}
+    Filter(ScriptBase *s) : dst(s) {}
 
     virtual void header(script_header &h) { dst->header(h); }
     virtual void send(Packet &action) { dst->send(action); }
@@ -101,7 +83,7 @@ namespace BTS {
     virtual void error(const char *reason) { dst->error(reason); }
     virtual void done() { dst->done(); }
     
-    void copy(const uint8_t *bytes, uint16_t length, Script &s) {
+    void copy(const uint8_t *bytes, uint16_t length, ScriptBase &s) {
       Filter f(&s);
 
       f.reset(bytes, length);
@@ -114,7 +96,7 @@ namespace BTS {
     uint16_t hci_opcode;
 
   public:
-    ExpectationMinimizer(Script *s);
+    ExpectationMinimizer(ScriptBase *s);
     virtual void send(Packet &action);
     virtual void expect(uint32_t msec, Packet &action);
   };
