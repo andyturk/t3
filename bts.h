@@ -95,7 +95,7 @@ namespace BTS {
     H4Script(H4Tranceiver &h);
 
     void go();
-    virtual void command_succeeded(uint16_t opcode, Packet *p);
+    bool command_complete(uint16_t opcode, Packet *p);
 
     // H4Controller methods
     virtual void sent(Packet *p);

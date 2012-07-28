@@ -14,6 +14,7 @@
 #include "bd_addr.h"
 #include "packet.h"
 #include "h4.h"
+#include "bts.h"
 
 extern const char hex_digits[16];
 
@@ -62,6 +63,7 @@ class BBand : public HostController {
   UART &uart;
   IOPin &shutdown;
   Pool<HCI::Connection, 3> hci_connection_pool;
+  BTS::H4Script *script;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);

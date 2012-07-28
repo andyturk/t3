@@ -212,14 +212,14 @@ namespace BTS {
   void H4Script::sent(Packet *p) {
   }
 
-  void H4Script::command_succeeded(uint16_t opcode, Packet *p) {
+  bool H4Script::command_complete(uint16_t opcode, Packet *p) {
     switch (opcode) {
     case OPCODE_PAN13XX_CHANGE_BAUD_RATE:
       h4.uart->set_baud(baud_rate);
-      break;
+      return true;
 
     default :
-      break;
+      return false;
     }
   }
 
@@ -244,7 +244,7 @@ namespace BTS {
         if (last_opcode == 0 || last_opcode == opcode) {
           if (status == HCI::SUCCESS) {
             last_opcode = 0;
-            command_succeeded(opcode, p);
+            command_complete(opcode, p);
 
             if (!is_complete()) play_next_action();
             return;
@@ -288,20 +288,24 @@ namespace BTS {
 
 
   void H4Script::go() {
+    /*
   __asm("cpsid i");
     H4Controller *saved = h4.get_controller();
     h4.set_controller(this);
   __asm("cpsie i");
-
+    */
   reset(bluetooth_init_cc2564, bluetooth_init_cc2564_size);
 
+  /*
   while (!is_complete()) {
     asm volatile ("wfi");
   }
-
+  */
+  /*
   __asm("cpsid i");
     h4.set_controller(saved);
   __asm("cpsie i");
+  */
   }
 #endif
 };

@@ -34,14 +34,15 @@ BBand::BBand(UART &u, IOPin &s) :
                  (PoolBase<HCI::Connection> *) &hci_connection_pool),
   uart(u),
   shutdown(s),
+  script(0),
   event_handler(&default_event_handler)
 {
 }
 
-void BBand::initialize() {
-  BTS::H4Script boot(h4);
-  extern H4Tranceiver h4;
+extern H4Tranceiver h4;
+BTS::H4Script boot(h4);
 
+void BBand::initialize() {
   uart.set_enable(false);
   uart.set_interrupt_enable(false);
   shutdown.set_value(0); // assert SHUTDOWN
@@ -58,6 +59,12 @@ void BBand::initialize() {
 
   CPU::delay(150); // wait 150 msec
   boot.go();
+
+  while (!boot.is_complete()) {
+    process_incoming_packets();
+    asm volatile ("wfi");
+  }
+
   cold_boot(0, 0);
 }
 
@@ -203,13 +210,15 @@ void BBand::standard_packet_handler(Packet *p) {
   switch (packet_indicator) {
   case EVENT_PACKET : {
     uint8_t event = p->get();
-    uint8_t ignored_param_length __attribute__ ((unused)) = p->get();
+    uint8_t parameter_length __attribute__ ((unused)) = p->get();
 
     if (event == EVENT_COMMAND_COMPLETE) {
       uint16_t opcode;
 
       *p >> command_packet_budget >> opcode;
-      command_complete_handler(this, opcode, p);
+      if (!script || !script->command_complete(opcode, p)) {
+        command_complete_handler(this, opcode, p);
+      }
     } else {
       event_handler(this, event, p);
     }
