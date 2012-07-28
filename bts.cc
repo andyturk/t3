@@ -15,22 +15,42 @@ extern size_t bluetooth_init_cc2564_size;
 #endif
 
 namespace BTS {
-  Player::Player() : last_opcode(0) {
-  }
-
-  void Player::reset(const uint8_t *bytes, uint16_t length) {
-    script.initialize((uint8_t *) bytes, length);
+  void Script::reset(const uint8_t *bytes, uint16_t length) {
     script_header h;
+
+    script.initialize((uint8_t *) bytes, length);
+    assert(script.get_remaining() >= sizeof(h));
+    script.read((uint8_t *) &h, sizeof(h));
     header(h);
   }
 
-  void Player::header(script_header &h) {
-    assert(script.get_remaining() >= sizeof(h));
-    script.read((uint8_t *) &h, sizeof(h));
+  void Script::header(script_header &h) {
     if (h.magic != BTSB) error("bad magic");
   }
 
-  void Player::play_next_action() {
+
+  void Script::send(Packet &action) {
+  }
+
+  void Script::expect(uint32_t msec, Packet &action) {
+  }
+
+  void Script::configure(uint32_t baud, flow_control control) {
+  }
+
+  void Script::call(const char *filename) {
+  }
+
+  void Script::comment(const char *text) {
+  }
+
+  void Script::error(const char *reason) {
+  }
+
+  void Script::done() {
+  }
+
+  void Script::play_next_action() {
     if (script.get_remaining() == 0) {
       done();
     } else if(script.get_remaining() < sizeof(command_header)) {
@@ -91,44 +111,6 @@ namespace BTS {
   }
 
 #ifndef __arm__
-  ExpectationMinimizer::ExpectationMinimizer(ScriptBase *s) :
-    Filter(s)
-  {
-  }
-
-  void ExpectationMinimizer::send(Packet &action) {
-    uint16_t start = action.tell();
-
-    if (action.get() == HCI::COMMAND_PACKET) {
-      action >> hci_opcode;
-    } else {
-      hci_opcode = 0;
-    }
-
-    action.rewind(start);
-    Filter::send(action);
-  }
-
-  void ExpectationMinimizer::expect(uint32_t msec, Packet &action) {
-    uint8_t indicator, event, parameter_length, hci_packets, status;
-    action >> indicator >> event >> parameter_length;
-
-    if (indicator != HCI::EVENT_PACKET || event != HCI::EVENT_COMMAND_COMPLETE) {
-      cerr << "unsupported expectation\n";
-      exit(1);
-    }
-
-    uint16_t opcode;
-    action >> hci_packets >> opcode >> status;
-      
-    if (hci_opcode != 0 && hci_opcode != opcode) {
-      cerr << "expectation not for last opcode\n";
-      exit(1);
-    }
-
-    hci_opcode = 0;
-  }
-
   SourceGenerator::SourceGenerator(const char *n) :
     name(n)
   {
@@ -139,7 +121,8 @@ namespace BTS {
     memset(&sh, 0, sizeof(sh));
     sh.magic = BTSB;
 
-    as_hex((const uint8_t *) &sh, sizeof(sh));
+    cout << "// 32-byte BTS header\n";
+    as_hex((const uint8_t *) &sh, sizeof(sh), "  ");
   }
 
   SourceGenerator::~SourceGenerator() {
@@ -219,7 +202,7 @@ namespace BTS {
   }
 
   void H4Player::reset(const uint8_t *bytes, uint16_t length) {
-    Player::reset(bytes, length);
+    Script::reset(bytes, length);
     h4.reset();
     status = HCI::SUCCESS;
     out = h4.command_packets.allocate();
@@ -233,7 +216,7 @@ namespace BTS {
   }
 
   void H4Player::play_next_action() {
-    Player::play_next_action();
+    Script::play_next_action();
     h4.fill_uart();
   }
 
