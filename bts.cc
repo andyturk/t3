@@ -176,8 +176,8 @@ namespace BTS {
     }
 
     cout << "// set baud to " << baud << " with flow control: " << c << endl;
-    command.rewind();
-    as_hex((uint8_t *) command, command.get_remaining(), "  ");
+    //command.rewind();
+    //as_hex((uint8_t *) command, command.get_remaining(), "  ");
   }
 
   void SourceGenerator::call(const char *filename) {
@@ -196,12 +196,12 @@ namespace BTS {
 #endif
 
 #ifdef __arm__
-  H4Player::H4Player(H4Tranceiver &h) :
+  H4Script::H4Script(H4Tranceiver &h) :
     h4(h)
   {
   }
 
-  void H4Player::reset(const uint8_t *bytes, uint16_t length) {
+  void H4Script::reset(const uint8_t *bytes, uint16_t length) {
     Script::reset(bytes, length);
     h4.reset();
     status = HCI::SUCCESS;
@@ -209,18 +209,26 @@ namespace BTS {
     play_next_action();
   }
 
-  void H4Player::sent(Packet *p) {
+  void H4Script::sent(Packet *p) {
   }
 
-  void H4Player::command_succeeded(uint16_t opcode, Packet *p) {
+  void H4Script::command_succeeded(uint16_t opcode, Packet *p) {
+    switch (opcode) {
+    case OPCODE_PAN13XX_CHANGE_BAUD_RATE:
+      h4.uart->set_baud(baud_rate);
+      break;
+
+    default :
+      break;
+    }
   }
 
-  void H4Player::play_next_action() {
+  void H4Script::play_next_action() {
     Script::play_next_action();
     h4.fill_uart();
   }
 
-  void H4Player::received(Packet *p) {
+  void H4Script::received(Packet *p) {
     uint8_t indicator, event, parameter_length, command_packet_budget;
     uint16_t opcode;
 
@@ -249,7 +257,7 @@ namespace BTS {
     script.seek(script.get_limit());
   }
 
-  void H4Player::send(Packet &action) {
+  void H4Script::send(Packet &action) {
     out->reset();
     out->write((uint8_t *) action, action.get_remaining());
     out->flip();
@@ -260,21 +268,26 @@ namespace BTS {
     action >> indicator >> last_opcode;
     assert(indicator == HCI::COMMAND_PACKET);
 
+    if (last_opcode == OPCODE_PAN13XX_CHANGE_BAUD_RATE) {
+      uint8_t parameter_length;
+      action >> parameter_length >> baud_rate;
+      assert(parameter_length == sizeof(baud_rate));
+    }
     action.reset();
   }
 
-  void H4Player::configure(uint32_t baud, flow_control control) {
+  void H4Script::configure(uint32_t baud, flow_control control) {
     h4.uart->set_baud(baud);
     assert(control == HARDWARE || control == NO_CHANGE);
     play_next_action();
   }
 
-  void H4Player::done() {
+  void H4Script::done() {
     for(;;);
   }
 
 
-  void H4Player::go() {
+  void H4Script::go() {
   __asm("cpsid i");
     H4Controller *saved = h4.get_controller();
     h4.set_controller(this);

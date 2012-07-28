@@ -39,7 +39,7 @@ BBand::BBand(UART &u, IOPin &s) :
 }
 
 void BBand::initialize() {
-  BTS::H4Player boot(h4);
+  BTS::H4Script boot(h4);
   extern H4Tranceiver h4;
 
   uart.set_enable(false);

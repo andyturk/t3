@@ -84,14 +84,15 @@ namespace BTS {
 #endif
 
 #ifdef __arm__
-  class H4Player : public Script, public H4Controller {
+  class H4Script : public Script, public H4Controller {
     H4Tranceiver &h4;
     uint16_t last_opcode;
     Packet *out;
     uint8_t status;
+    uint32_t baud_rate;
 
   public:
-    H4Player(H4Tranceiver &h);
+    H4Script(H4Tranceiver &h);
 
     void go();
     virtual void command_succeeded(uint16_t opcode, Packet *p);
