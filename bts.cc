@@ -205,7 +205,6 @@ namespace BTS {
     Script::reset(bytes, length);
     h4.reset();
     status = HCI::SUCCESS;
-    out = h4.command_packets.allocate();
     play_next_action();
   }
 
@@ -213,14 +212,19 @@ namespace BTS {
   }
 
   bool H4Script::command_complete(uint16_t opcode, Packet *p) {
+    bool value = false;
+
     switch (opcode) {
     case OPCODE_PAN13XX_CHANGE_BAUD_RATE:
       h4.uart->set_baud(baud_rate);
-      return true;
+      value = true;
 
     default :
-      return false;
+      break;
     }
+
+    play_next_action();
+    return value;
   }
 
   void H4Script::play_next_action() {
@@ -258,6 +262,8 @@ namespace BTS {
   }
 
   void H4Script::send(Packet &action) {
+    Packet *out = h4.command_packets.allocate();
+
     out->reset();
     out->write((uint8_t *) action, action.get_remaining());
     out->flip();

@@ -52,7 +52,7 @@ void BBand::initialize() {
   h4.reset();
 
   uart.set_interrupt_sources(UART::RX | UART::ERROR);
-  command_complete_handler = &cold_boot;
+  command_complete_handler = &normal_operation;// &cold_boot;
 
   shutdown.set_value(1); // clear SHUTDOWN
   uart.set_interrupt_enable(true);
@@ -60,12 +60,14 @@ void BBand::initialize() {
   CPU::delay(150); // wait 150 msec
   boot.go();
 
+  script = &boot;
   while (!boot.is_complete()) {
     process_incoming_packets();
     asm volatile ("wfi");
   }
+  script = 0;
 
-  cold_boot(0, 0);
+  //cold_boot(0, 0);
 }
 
 void HostController::send(Packet *p) {

@@ -87,7 +87,6 @@ namespace BTS {
   class H4Script : public Script, public H4Controller {
     H4Tranceiver &h4;
     uint16_t last_opcode;
-    Packet *out;
     uint8_t status;
     uint32_t baud_rate;
 
