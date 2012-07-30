@@ -225,6 +225,10 @@ namespace BTS {
   {
   }
 
+  bool H4Script::is_complete() const {
+    return Script::is_complete() && last_opcode == 0;
+  }
+
   void H4Script::reset(const uint8_t *bytes, uint16_t length) {
     Script::reset(bytes, length);
     h4.reset();

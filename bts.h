@@ -102,7 +102,7 @@ namespace BTS {
 
     // Sequence methods
 
-    virtual bool is_complete() const { return Script::is_complete(); }
+    virtual bool is_complete() const;
     virtual bool command_status(uint16_t opcode, Packet *p) { return false; }
     virtual void restart() { assert(false); }
     virtual void next() { play_next_action(); }
