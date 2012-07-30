@@ -15,6 +15,12 @@ extern size_t bluetooth_init_cc2564_size;
 #endif
 
 namespace BTS {
+  Script::Script(uint8_t *bytes, uint16_t length) :
+    script(bytes, length)
+  {
+  }
+
+
   void Script::reset(const uint8_t *bytes, uint16_t length) {
     script_header h;
 
@@ -111,7 +117,8 @@ namespace BTS {
   }
 
 #ifndef __arm__
-  SourceGenerator::SourceGenerator(const char *n) :
+  SourceGenerator::SourceGenerator(const char *n, uint8_t *bytes, uint16_t length) :
+    Script(bytes, length),
     name(n)
   {
     cout << "#include <stdint.h>\n";
@@ -152,6 +159,22 @@ namespace BTS {
   void SourceGenerator::send(Packet &action) {
     command_header ch = {SEND_COMMAND, action.get_remaining()};
 
+    uint16_t pos = action.tell();
+
+    uint8_t indicator;
+    action >> indicator;
+
+    if (indicator == COMMAND_PACKET) {
+      uint16_t opcode;
+      action >> opcode;
+
+      if (opcode == OPCODE_SLEEP_MODE_CONFIGURATIONS) {
+        // omit the OEM sleep mode configuration command
+        return;
+      }
+    }
+
+    action.rewind(pos);
     as_hex((uint8_t *) &ch, sizeof(ch), "  ");
     as_hex((uint8_t *) action, action.get_remaining(), "  ");
     cout << endl;
@@ -196,8 +219,9 @@ namespace BTS {
 #endif
 
 #ifdef __arm__
-  H4Script::H4Script(H4Tranceiver &h) :
-    h4(h)
+  H4Script::H4Script(H4Tranceiver &h, uint8_t *bytes, uint16_t length) :
+    Script(bytes, length),
+    Sequence(h)
   {
   }
 
@@ -208,57 +232,28 @@ namespace BTS {
     play_next_action();
   }
 
-  void H4Script::sent(Packet *p) {
-  }
-
   bool H4Script::command_complete(uint16_t opcode, Packet *p) {
-    bool value = false;
+    if (opcode != last_opcode) return false;
+    last_opcode = 0; // clear it out
 
     switch (opcode) {
     case OPCODE_PAN13XX_CHANGE_BAUD_RATE:
       h4.uart->set_baud(baud_rate);
-      value = true;
+      break;
 
     default :
       break;
     }
 
+    debug("OK 0x%04x\n", opcode);
+    p->deallocate();
     play_next_action();
-    return value;
+    return true;
   }
 
   void H4Script::play_next_action() {
     Script::play_next_action();
     h4.fill_uart();
-  }
-
-  void H4Script::received(Packet *p) {
-    uint8_t indicator, event, parameter_length, command_packet_budget;
-    uint16_t opcode;
-
-    *p >> indicator;
-    if (indicator == HCI::EVENT_PACKET) {
-      *p >> event;
-
-      if (event == HCI::EVENT_COMMAND_COMPLETE) {
-        *p >> parameter_length >> command_packet_budget >> opcode >> status;
-
-        debug("0x%04x completed with status %d\n", opcode, status);
-
-        if (last_opcode == 0 || last_opcode == opcode) {
-          if (status == HCI::SUCCESS) {
-            last_opcode = 0;
-            command_complete(opcode, p);
-
-            if (!is_complete()) play_next_action();
-            return;
-          }
-        }
-      }
-    }
-
-    status = HCI::COMMAND_DISALLOWED;
-    script.seek(script.get_limit());
   }
 
   void H4Script::send(Packet &action) {
@@ -350,15 +345,17 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  BTS::SourceGenerator code("bluetooth_init_cc2564");
+  BTS::SourceGenerator code("bluetooth_init_cc2564", raw_patch, raw_patch_size);
   SizedPacket<259> p;
 
   code.comment("Reset Pan13XX");
-  p.hci(HCI::OPCODE_RESET).flip();
+  p.hci(HCI::OPCODE_RESET);
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("Read local version info");
-  p.hci(HCI::OPCODE_READ_LOCAL_VERSION_INFORMATION).flip();
+  p.hci(HCI::OPCODE_READ_LOCAL_VERSION_INFORMATION);
+  p.prepare_for_tx();
   code.send(p);
 
   // code.comment("Change baud rate to 921600 since we'll be downloading large patches");
@@ -370,34 +367,37 @@ int main(int argc, char *argv[]) {
   code.emit(raw_patch, raw_patch_size);
   delete raw_patch;
 
-#if 0
   code.comment("Disable sleep modes");
   p.hci(HCI::OPCODE_SLEEP_MODE_CONFIGURATIONS);
-  p << (uint8_t) 0x00; // big sleep enable
+  p << (uint8_t) 0x01; // big sleep enable
   p << (uint8_t) 0x00; // deep sleep enable
-  p << (uint8_t) 0xff; // deep sleep mode (0xff = no change)
+  p << (uint8_t) 0x00; // deep sleep mode (0xff = no change)
   p << (uint8_t) 0xff; // output I/O select (0xff = no change)
   p << (uint8_t) 0xff; // output pull enable (0xff = no change)
   p << (uint8_t) 0xff; // input pull enable (0xff = no change)
   p << (uint8_t) 0xff; // input I/O select (0xff = no change)
-  p << (uint8_t) 0x00; // reserved -- must be 0
-  p.flip();
+  p << (uint16_t) 100; // reserved -- must be 0?
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("get BD_ADDR");
-  p.hci(HCI::OPCODE_READ_BD_ADDR).flip();
+  p.hci(HCI::OPCODE_READ_BD_ADDR);
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("get buffer size info");
-  p.hci(HCI::OPCODE_READ_BUFFER_SIZE_COMMAND).flip();
+  p.hci(HCI::OPCODE_READ_BUFFER_SIZE_COMMAND);
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("write page timeout");
-  (p.hci(HCI::OPCODE_WRITE_PAGE_TIMEOUT) << (uint16_t) 0x2000).flip();
+  (p.hci(HCI::OPCODE_WRITE_PAGE_TIMEOUT) << (uint16_t) 0x2000);
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("read page timeout");
-  (p.hci(HCI::OPCODE_READ_PAGE_TIMEOUT)).flip();
+  (p.hci(HCI::OPCODE_READ_PAGE_TIMEOUT));
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("write local name");
@@ -405,43 +405,44 @@ int main(int argc, char *argv[]) {
   strncpy(local_name, "Super Whizzy Gizmo 1.1", sizeof(local_name));
   p.hci(HCI::OPCODE_WRITE_LOCAL_NAME_COMMAND);
   p.write((uint8_t *) local_name, sizeof(local_name));
-  p.flip();
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("write scan enable");
-  (p.hci(HCI::OPCODE_WRITE_SCAN_ENABLE) << (uint8_t) 0x03).flip();
+  (p.hci(HCI::OPCODE_WRITE_SCAN_ENABLE) << (uint8_t) 0x03);
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("write class of device");
   code.comment("see http://bluetooth-pentest.narod.ru/software/bluetooth_class_of_device-service_generator.html");
   p.hci(HCI::OPCODE_WRITE_CLASS_OF_DEVICE);
   p << (uint32_t) 0x0098051c;
-  p.flip();
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("set event mask");
   p.hci(HCI::OPCODE_SET_EVENT_MASK) << (uint32_t) 0xffffffff << (uint32_t) 0x20001fff;
-  p.flip();
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("write le host support");
   p.hci(HCI::OPCODE_WRITE_LE_HOST_SUPPORT) << (uint8_t) 1 << (uint8_t) 1;
-  p.flip();
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("le set event mask");
   p.hci(HCI::OPCODE_LE_SET_EVENT_MASK) << (uint32_t) 0x0000001f << (uint32_t) 0x00000000;
-  p.flip();
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("le read buffer size");
   p.hci(HCI::OPCODE_LE_READ_BUFFER_SIZE);
-  p.flip();
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("le read supported states");
   p.hci(HCI::OPCODE_LE_READ_SUPPORTED_STATES);
-  p.flip();
+  p.prepare_for_tx();
   code.send(p);
 
   code.comment("le set advertising parameters");
@@ -451,9 +452,8 @@ int main(int argc, char *argv[]) {
   p << (uint8_t) 0x00;
   p << (uint8_t) 0x00;
   p << (uint8_t) 0x00;
-  p.flip();
+  p.prepare_for_tx();
   code.send(p);
-#endif 
 
 }
 #endif

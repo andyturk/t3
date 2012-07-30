@@ -73,6 +73,7 @@ class BBand : public HostController {
   void upload_patch(uint16_t opcode, Packet *p);
   void warm_boot(uint16_t opcode, Packet *p);
   void normal_operation(uint16_t opcode, Packet *p);
+  void command_complete(uint16_t opcode, Packet *p);
   
   void standard_packet_handler(Packet *p);
   void default_event_handler(uint8_t event, Packet *p);

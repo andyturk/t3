@@ -40,7 +40,10 @@ BBand::BBand(UART &u, IOPin &s) :
 }
 
 extern H4Tranceiver h4;
-BTS::H4Script boot(h4);
+extern uint8_t bluetooth_init_cc2564[];
+extern size_t bluetooth_init_cc2564_size;
+
+BTS::H4Script boot(h4, bluetooth_init_cc2564, bluetooth_init_cc2564_size);
 
 void BBand::initialize() {
   uart.set_enable(false);
@@ -218,9 +221,7 @@ void BBand::standard_packet_handler(Packet *p) {
       uint16_t opcode;
 
       *p >> command_packet_budget >> opcode;
-      if (!script || !script->command_complete(opcode, p)) {
-        command_complete_handler(this, opcode, p);
-      }
+      command_complete(opcode, p);
     } else {
       event_handler(this, event, p);
     }
@@ -249,6 +250,74 @@ void BBand::standard_packet_handler(Packet *p) {
     debug("discarding unknown packet of type %d\n", packet_indicator);
     p->deallocate();
   }
+}
+
+void BBand::command_complete(uint16_t opcode, Packet *p) {
+  if (script && script->command_complete(opcode, p)) return;
+
+  switch (opcode) {
+  case OPCODE_READ_LOCAL_VERSION_INFORMATION : {
+    uint8_t hci_version, lmp_version;
+    uint16_t hci_revision, manufacturer_name, lmp_subversion;
+
+    *p >> hci_version >> hci_revision >> lmp_version >> manufacturer_name >> lmp_subversion;
+    assert(hci_version == SPECIFICATION_4_0);
+    break;
+  }
+
+  case OPCODE_READ_BD_ADDR : {
+    p->read(bd_addr.data, sizeof(bd_addr.data));
+
+    debug("bd_addr = ");
+    for (int i=5; i >= 0; --i) debug("%02x:", bd_addr.data[i]);
+    debug("\n");
+    break;
+  }
+
+  case OPCODE_READ_BUFFER_SIZE_COMMAND : {
+    uint16_t acl_data_length, num_acl_packets, num_synchronous_packets;
+    uint8_t synchronous_data_length;
+
+    *p >> acl_data_length >> synchronous_data_length;
+    *p >> num_acl_packets >> num_synchronous_packets;
+
+    debug("acl: %d @ %d, synchronous: %d @ %d\n",
+               num_acl_packets, acl_data_length,
+               num_synchronous_packets, synchronous_data_length);
+    break;
+  }
+
+  case OPCODE_READ_PAGE_TIMEOUT : {
+    uint16_t timeout;
+
+    *p >> timeout;
+    uint32_t usec = timeout*625;
+    debug("page timeout = %d.%d msec\n", usec/1000, usec%1000);
+    break;
+  }
+
+  case OPCODE_LE_READ_BUFFER_SIZE : {
+    debug("buffer size read\n");
+    uint16_t le_data_packet_length;
+    uint8_t num_le_packets;
+
+    *p >> le_data_packet_length >> num_le_packets;
+    debug("le_data_packet_length = %d, num_packets = %d\n", le_data_packet_length, num_le_packets);
+    break;
+  }
+
+  case OPCODE_LE_READ_SUPPORTED_STATES : {
+    debug("supported states read\n");
+
+    uint8_t states[8];
+    p->read(states, sizeof(states));
+    debug("states = 0x");
+    for (int i=0; i < 8; ++i) debug("%02x", states[i]);
+    debug("\n");
+    break;
+  }
+  }
+  if (p) p->deallocate();
 }
 
 void BBand::cold_boot(uint16_t opcode, Packet *p) {
@@ -333,27 +402,6 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
     warm_boot(0, p);
   }
 }
-
-/*
-const uint8_t warm_boot_patch[] = {
-  0x01, I2(OPCODE_READ_BD_ADDR), 0,
-  0x01, I2(OPCODE_READ_BUFFER_SIZE_COMMAND), 0,
-  0x01, I2(OPCODE_WRITE_PAGE_TIMEOUT), 0, I2(0x2000),
-  0x01, I2(OPCODE_READ_PAGE_TIMEOUT), 0,
-  // WRITE_LOCAL_NAME_COMMAND
-  0x01, I2(OPCODE_WRITE_SCAN_ENABLE), 1, 0x03,
-  0x01, I2(OPCODE_WRITE_CLASS_OF_DEVICE), 4, I4(0x0098051c),
-  0x01, I2(OPCODE_SET_EVENT_MASK), 8, I4(0xffffffff), I4(0x20001fff),
-  0x01, I2(OPCODE_WRITE_LE_HOST_SUPPORT), 2, 1, 1,
-  0x01, I2(OPCODE_LE_SET_EVENT_MASK), 8, I4(0xffffffff), I4(0xffffffff),
-  0x01, I2(OPCODE_LE_READ_BUFFER_SIZE), 0,
-  0x01, I2(OPCODE_LE_READ_SUPPORTED_STATES), 0,
-  // LE_SET_ADVERTISING_PARAMETERS
-  0x01, I2(OPCODE_LE_SET_ADVERTISING_DATA), 8, 7, 0x02, 0x01, 0x05, 0x03, 0x02, 0xf0, 0xff,
-  0x01, I2(OPCODE_LE_SET_SCAN_RESPONSE_DATA), 8, 7, 0x02, 0x01, 0x05, 0x03, 0x02, 0xf0, 0xff,
-  0x01, I2(OPCODE_LE_SET_ADVERTISE_ENABLE), 1, 0x01,
-};
-*/
 
 void BBand::normal_operation(uint16_t opcode, Packet *p) {
   debug("OK 0x%04x\n", opcode);

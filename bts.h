@@ -2,13 +2,15 @@
 
 #include "assert.h"
 #include "packet.h"
-#include "h4.h"
+#include "sequence.h"
+
 /*
  * Derived from http://www.codeforge.com/article/39565
  */
 
 namespace BTS {
   class Script {
+
   protected:
     Packet script, command;
     uint16_t last_opcode;
@@ -47,6 +49,8 @@ namespace BTS {
       uint32_t control;
     } configuration;
 
+
+    Script(uint8_t *bytes, uint16_t length);
     virtual void reset(const uint8_t *bytes, uint16_t length);
     virtual void play_next_action();
     bool is_complete() const {return script.get_remaining() == 0;}
@@ -68,7 +72,7 @@ namespace BTS {
     void as_hex(const uint8_t *bytes, uint16_t size, const char *start = 0);
 
   public:
-    SourceGenerator(const char *n);
+    SourceGenerator(const char *n, uint8_t *bytes, uint16_t length);
     ~SourceGenerator();
 
     void emit(const uint8_t *bytes, uint16_t size);
@@ -84,21 +88,24 @@ namespace BTS {
 #endif
 
 #ifdef __arm__
-  class H4Script : public Script, public H4Controller {
-    H4Tranceiver &h4;
+  class H4Script : public Script, public Sequence {
     uint16_t last_opcode;
     uint8_t status;
     uint32_t baud_rate;
 
   public:
-    H4Script(H4Tranceiver &h);
+    H4Script(H4Tranceiver &h4, uint8_t *bytes, uint16_t length);
 
     void go();
-    bool command_complete(uint16_t opcode, Packet *p);
+    virtual bool command_complete(uint16_t opcode, Packet *p);
+    
 
-    // H4Controller methods
-    virtual void sent(Packet *p);
-    virtual void received(Packet *p);
+    // Sequence methods
+
+    virtual bool is_complete() const { return Script::is_complete(); }
+    virtual bool command_status(uint16_t opcode, Packet *p) { return false; }
+    virtual void restart() { assert(false); }
+    virtual void next() { play_next_action(); }
 
     // Player methods
     virtual void reset(const uint8_t *bytes, uint16_t length);
