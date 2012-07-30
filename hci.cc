@@ -6,6 +6,8 @@
 #include "assert.h"
 #include "bts.h"
 
+#include "bluetooth_init_cc2564.h"
+
 using namespace HCI;
 
 const char hex_digits[16] = {
@@ -40,10 +42,32 @@ BBand::BBand(UART &u, IOPin &s) :
 }
 
 extern H4Tranceiver h4;
-extern uint8_t bluetooth_init_cc2564[];
-extern size_t bluetooth_init_cc2564_size;
 
-BTS::H4Script boot(h4, bluetooth_init_cc2564, bluetooth_init_cc2564_size);
+class _bluetooth_init_cc2564 : public bluetooth_init_cc2564 {
+public:
+  virtual void next() {
+    bluetooth_init_cc2564::next();
+
+    debug("send 0x%04x\n", last_opcode);
+
+    Packet *out = h4.command_packets.allocate();
+
+    out->reset();
+    out->write((uint8_t *) command, command.get_remaining());
+    out->flip();
+    out->join(&h4.packets_to_send);
+
+    h4.fill_uart();
+  }
+
+  virtual bool command_complete(uint16_t opcode, Packet *p) {
+    if (opcode == OPCODE_PAN13XX_CHANGE_BAUD_RATE) {
+      h4.uart->set_baud(baud_rate);
+    }
+
+    return CannedSequence::command_complete(opcode, p);
+  }
+} oem_boot_script;
 
 void BBand::initialize() {
   uart.set_enable(false);
@@ -61,10 +85,10 @@ void BBand::initialize() {
   uart.set_interrupt_enable(true);
 
   CPU::delay(150); // wait 150 msec
-  boot.go();
 
-  script = &boot;
-  while (!boot.is_complete()) {
+  script = &oem_boot_script;
+  script->next();
+  while (!script->is_complete()) {
     process_incoming_packets();
     asm volatile ("wfi");
   }

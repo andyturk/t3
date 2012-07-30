@@ -19,14 +19,14 @@ ARM_CMSIS = /Users/andy/Downloads/CMSIS_V3P00/CMSIS
 QPCPP = ../qpcpp
 STELLARISWARE = ../StellarisWare
 
-GENERATED = vector_table.cc patch.cc
+GENERATED = vector_table.cc bluetooth_init_cc2564.cc
 C_SOURCES = $(wildcard *.c) $(wildcard $(BUILD)/*.c)
 CC_SOURCES = $(wildcard *.cc) $(wildcard $(BUILD)/*.cc) $(addprefix $(BUILD)/,$(GENERATED))
 OBJECTS = $(addprefix $(OBJ)/,$(sort $(notdir $(C_SOURCES:.c=.o) $(CC_SOURCES:.cc=.o))))
 
 STELLARIS = ../StellarisWare
 
-CFLAGS  = -I. -I/usr/local/arm-gcc/include
+CFLAGS  = -I. -I$(BUILD) -I/usr/local/arm-gcc/include
 CFLAGS += -I$(TI_CMSIS)/Include -I$(ARM_CMSIS)/Include -I$(STELLARIS)/inc
 CFLAGS += -I$(STELLARISWARE)
 CFLAGS += -mcpu=cortex-m3 -mthumb -g -Dgcc -DPART_LM3S9D96 -fms-extensions -Wall
@@ -65,9 +65,9 @@ $(OBJ)/%.o : %.cc $(OBJ)/.sentinel
 $(BUILD)/%.S : %.cc $(BUILD)/.sentinel
 	$(CC) -S -c $(CFLAGS) -fno-rtti -fno-exceptions $< -o $@
 
-$(OBJ)/patch.o : $(BUILD)/patch.cc
+$(OBJ)/bluetooth_init_cc2564.o : $(BUILD)/bluetooth_init_cc2564.cc
 
-$(BUILD)/patch.cc :
+$(BUILD)/bluetooth_init_cc2564.cc :
 	$(MAKE) -f host.mk $@
 
 $(OBJ)/%.o : %.S $(OBJ)/.sentinel

@@ -68,7 +68,9 @@ namespace BTS {
 #ifndef __arm__
   class SourceGenerator : public Script {
   protected:
+    ofstream out;
     const char *name;
+
     void as_hex(const uint8_t *bytes, uint16_t size, const char *start = 0);
 
   public:
@@ -89,6 +91,7 @@ namespace BTS {
 
 #ifdef __arm__
   class H4Script : public Script, public Sequence {
+    H4Tranceiver h4;
     uint16_t last_opcode;
     uint8_t status;
     uint32_t baud_rate;

@@ -121,21 +121,36 @@ namespace BTS {
     Script(bytes, length),
     name(n)
   {
-    cout << "#include <stdint.h>\n";
-    cout << "extern \"C\" const uint8_t " << name << "[] = {\n";
+    char h_file_name[256];
+    char cc_file_name[256];
 
-    script_header sh;
-    memset(&sh, 0, sizeof(sh));
-    sh.magic = BTSB;
+    char buf[256];
 
-    cout << "// 32-byte BTS header\n";
-    as_hex((const uint8_t *) &sh, sizeof(sh), "  ");
+    strcpy(h_file_name, name);
+    strcat(h_file_name, ".h");
+    ofstream header;
+
+    header.open(h_file_name, ofstream::out | ofstream::trunc);
+    header << "#include \"sequence.h\"\n";
+    header << "class  " << name << " : public CannedSequence {\n";
+    header << "  static const uint8_t canned_bytes[];\n";
+    header << "public:\n";
+    header << "  " << name << "();\n";
+    header << "};\n";
+    header.close();
+    
+    strcpy(cc_file_name, name);
+    strcat(cc_file_name, ".cc");
+    out.open(cc_file_name);
+
+    out << "#include \"" << h_file_name << "\"\n";
+    out << "const uint8_t " << name << "::canned_bytes[] = {\n";
   }
 
   SourceGenerator::~SourceGenerator() {
-    cout << "};\n";
-    cout << "extern \"C\" const uint32_t " << name << "_size = sizeof(" << name << ");\n";
-    
+    out << "};\n";
+    out << name << "::" << name << "() : CannedSequence(canned_bytes, sizeof(canned_bytes)) {}\n";
+    out.close();
   }
 
   void SourceGenerator::emit(const uint8_t *bytes, uint16_t size) {
@@ -146,14 +161,25 @@ namespace BTS {
   void SourceGenerator::as_hex(const uint8_t *bytes, uint16_t size, const char *start) {
     const uint8_t *limit = bytes + size;
 
-    cout << hex << setfill('0');
+    out << hex << setfill('0');
     while (bytes < limit) {
-      if (start) cout << start;
+      if (start) out << start;
       for (int i=0; i < 16 && bytes < limit; ++i)
-        cout << "0x" << setw(2) << (int) *bytes++ << ", ";
-      cout << "\n";
+        out << "0x" << setw(2) << (int) *bytes++ << ", ";
+      out << "\n";
     }
-    cout << dec;
+    out << dec;
+  }
+
+  bool omit_opcode(uint16_t opcode) {
+    switch (opcode) {
+    case OPCODE_SLEEP_MODE_CONFIGURATIONS :
+    case OPCODE_HCILL_PARAMETERS :
+      return true;
+
+    default :
+      return false;
+    }
   }
 
   void SourceGenerator::send(Packet &action) {
@@ -162,28 +188,33 @@ namespace BTS {
     uint16_t pos = action.tell();
 
     uint8_t indicator;
+    bool omitted = false;
+
     action >> indicator;
 
     if (indicator == COMMAND_PACKET) {
       uint16_t opcode;
       action >> opcode;
 
-      if (opcode == OPCODE_SLEEP_MODE_CONFIGURATIONS) {
-        // omit the OEM sleep mode configuration command
-        return;
+      if (omit_opcode(opcode)) {
+        omitted = true;
+        out << "/* omitting \n";
       }
     }
 
     action.rewind(pos);
-    as_hex((uint8_t *) &ch, sizeof(ch), "  ");
     as_hex((uint8_t *) action, action.get_remaining(), "  ");
-    cout << endl;
+
+    if (omitted) {
+      out << " */";
+    }
+    out << endl;
   }
 
   void SourceGenerator::expect(uint32_t msec, Packet &action) {
-    cout << "// within " << msec << " msec expect:" << endl;
+    out << "// within " << msec << " msec expect:" << endl;
     as_hex((uint8_t *) action, action.get_remaining(), "// ");
-    cout << endl;
+    out << endl;
   }
 
   void SourceGenerator::configure(uint32_t baud, flow_control control) {
@@ -198,7 +229,7 @@ namespace BTS {
       exit(1);
     }
 
-    cout << "// set baud to " << baud << " with flow control: " << c << endl;
+    out << "// set baud to " << baud << " with flow control: " << c << endl;
     //command.rewind();
     //as_hex((uint8_t *) command, command.get_remaining(), "  ");
   }
@@ -209,7 +240,7 @@ namespace BTS {
   }
 
   void SourceGenerator::comment(const char *text) {
-    cout << "// " << text << endl;
+    out << "// " << text << endl;
   }
 
   void SourceGenerator::error(const char *msg) {
@@ -221,7 +252,7 @@ namespace BTS {
 #ifdef __arm__
   H4Script::H4Script(H4Tranceiver &h, uint8_t *bytes, uint16_t length) :
     Script(bytes, length),
-    Sequence(h)
+    h4(h)
   {
   }
 
@@ -299,7 +330,7 @@ namespace BTS {
     h4.set_controller(this);
   __asm("cpsie i");
     */
-  reset(bluetooth_init_cc2564, bluetooth_init_cc2564_size);
+    //reset(bluetooth_init_cc2564, bluetooth_init_cc2564_size);
 
   /*
   while (!is_complete()) {
@@ -334,8 +365,8 @@ void file_as_bytes(const char *file, uint8_t *&value, size_t &size) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    cerr << "usage: bts filename\n";
+  if (argc < 3) {
+    cerr << "usage: bts <bts file> <class name>\n";
     exit(1);
   }
 
@@ -349,7 +380,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  BTS::SourceGenerator code("bluetooth_init_cc2564", raw_patch, raw_patch_size);
+  BTS::SourceGenerator code(argv[2], raw_patch, raw_patch_size);
   SizedPacket<259> p;
 
   code.comment("Reset Pan13XX");

@@ -63,7 +63,7 @@ class BBand : public HostController {
   UART &uart;
   IOPin &shutdown;
   Pool<HCI::Connection, 3> hci_connection_pool;
-  BTS::H4Script *script;
+  Sequence *script;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
