@@ -119,38 +119,16 @@ namespace BTS {
 #ifndef __arm__
   SourceGenerator::SourceGenerator(const char *n, uint8_t *bytes, uint16_t length) :
     Script(bytes, length),
-    name(n)
+    name(n),
+    out(&cout)
   {
-    char h_file_name[256];
-    char cc_file_name[256];
-
-    char buf[256];
-
-    strcpy(h_file_name, name);
-    strcat(h_file_name, ".h");
-    ofstream header;
-
-    header.open(h_file_name, ofstream::out | ofstream::trunc);
-    header << "#include \"sequence.h\"\n";
-    header << "class  " << name << " : public CannedSequence {\n";
-    header << "  static const uint8_t canned_bytes[];\n";
-    header << "public:\n";
-    header << "  " << name << "();\n";
-    header << "};\n";
-    header.close();
-    
-    strcpy(cc_file_name, name);
-    strcat(cc_file_name, ".cc");
-    out.open(cc_file_name);
-
-    out << "#include \"" << h_file_name << "\"\n";
-    out << "const uint8_t " << name << "::canned_bytes[] = {\n";
+    *out << "#include <stdint.h>\n";
+    *out << "extern \"C\" const uint8_t " << name << "[] = {\n";
   }
 
   SourceGenerator::~SourceGenerator() {
-    out << "};\n";
-    out << name << "::" << name << "() : CannedSequence(canned_bytes, sizeof(canned_bytes)) {}\n";
-    out.close();
+    *out << "};\n";
+    *out << "extern \"C\" const uint32_t " << name << "_size = sizeof(" << name << ");\n";
   }
 
   void SourceGenerator::emit(const uint8_t *bytes, uint16_t size) {
@@ -161,14 +139,14 @@ namespace BTS {
   void SourceGenerator::as_hex(const uint8_t *bytes, uint16_t size, const char *start) {
     const uint8_t *limit = bytes + size;
 
-    out << hex << setfill('0');
+    *out << hex << setfill('0');
     while (bytes < limit) {
-      if (start) out << start;
+      if (start) *out << start;
       for (int i=0; i < 16 && bytes < limit; ++i)
-        out << "0x" << setw(2) << (int) *bytes++ << ", ";
-      out << "\n";
+        *out << "0x" << setw(2) << (int) *bytes++ << ", ";
+      *out << "\n";
     }
-    out << dec;
+    *out << dec;
   }
 
   bool omit_opcode(uint16_t opcode) {
@@ -198,7 +176,7 @@ namespace BTS {
 
       if (omit_opcode(opcode)) {
         omitted = true;
-        out << "/* omitting \n";
+        *out << "/* omitting \n";
       }
     }
 
@@ -206,15 +184,15 @@ namespace BTS {
     as_hex((uint8_t *) action, action.get_remaining(), "  ");
 
     if (omitted) {
-      out << " */";
+      *out << " */";
     }
-    out << endl;
+    *out << endl;
   }
 
   void SourceGenerator::expect(uint32_t msec, Packet &action) {
-    out << "// within " << msec << " msec expect:" << endl;
+    *out << "// within " << msec << " msec expect:" << endl;
     as_hex((uint8_t *) action, action.get_remaining(), "// ");
-    out << endl;
+    *out << endl;
   }
 
   void SourceGenerator::configure(uint32_t baud, flow_control control) {
@@ -229,7 +207,7 @@ namespace BTS {
       exit(1);
     }
 
-    out << "// set baud to " << baud << " with flow control: " << c << endl;
+    *out << "// set baud to " << baud << " with flow control: " << c << endl;
     //command.rewind();
     //as_hex((uint8_t *) command, command.get_remaining(), "  ");
   }
@@ -240,7 +218,7 @@ namespace BTS {
   }
 
   void SourceGenerator::comment(const char *text) {
-    out << "// " << text << endl;
+    *out << "// " << text << endl;
   }
 
   void SourceGenerator::error(const char *msg) {
@@ -366,7 +344,7 @@ void file_as_bytes(const char *file, uint8_t *&value, size_t &size) {
 
 int main(int argc, char *argv[]) {
   if (argc < 3) {
-    cerr << "usage: bts <bts file> <class name>\n";
+    cerr << "usage: bts <bts file> <decl name>\n";
     exit(1);
   }
 

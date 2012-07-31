@@ -68,7 +68,7 @@ namespace BTS {
 #ifndef __arm__
   class SourceGenerator : public Script {
   protected:
-    ofstream out;
+    ostream *out;
     const char *name;
 
     void as_hex(const uint8_t *bytes, uint16_t size, const char *start = 0);

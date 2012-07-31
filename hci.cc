@@ -6,8 +6,6 @@
 #include "assert.h"
 #include "bts.h"
 
-#include "bluetooth_init_cc2564.h"
-
 using namespace HCI;
 
 const char hex_digits[16] = {
@@ -43,10 +41,15 @@ BBand::BBand(UART &u, IOPin &s) :
 
 extern H4Tranceiver h4;
 
-class _bluetooth_init_cc2564 : public bluetooth_init_cc2564 {
+extern "C" const uint8_t bluetooth_init_cc2564[];
+extern uint32_t bluetooth_init_cc2564_size;
+
+class _bluetooth_init_cc2564 : public CannedSequence {
 public:
+  _bluetooth_init_cc2564() : CannedSequence(bluetooth_init_cc2564, bluetooth_init_cc2564_size) {}
+
   virtual void next() {
-    bluetooth_init_cc2564::next();
+    CannedSequence::next();
 
     debug("send 0x%04x\n", last_opcode);
 

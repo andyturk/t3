@@ -8,7 +8,7 @@ BTS = $(BUILD)/bts
 
 vpath $(OBJ)
 
-default : $(BUILD)/bluetooth_init_cc2564.cc $(BUILD)/bluetooth_init_cc2564.h
+default : $(BUILD)/bluetooth_init_cc2564.cc
 
 clean :
 	rm -rf $(BUILD)
@@ -25,7 +25,6 @@ $(OBJ)/%.o : %.cc $(OBJ)/.sentinel
 $(BTS) : $(BTS_OBJECTS)
 	$(CXX) -o $(BTS) $(BTS_OBJECTS)
 
-$(BUILD)/bluetooth_init_cc2564.cc $(BUILD)/bluetooth_init_cc2564.h : $(BTS) bluetooth_init_cc2564_2.1.bts $(BUILD)/.sentinel
-	$(BTS) ./bluetooth_init_cc2564_2.1.bts bluetooth_init_cc2564
-	mv bluetooth_init_cc2564.h bluetooth_init_cc2564.cc $(BUILD)
+$(BUILD)/bluetooth_init_cc2564.cc : $(BTS) bluetooth_init_cc2564_2.1.bts $(BUILD)/.sentinel
+	$(BTS) ./bluetooth_init_cc2564_2.1.bts bluetooth_init_cc2564 >$(BUILD)/bluetooth_init_cc2564.cc
 
