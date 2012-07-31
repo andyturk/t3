@@ -347,6 +347,7 @@ void BBand::command_complete(uint16_t opcode, Packet *p) {
   if (p) p->deallocate();
 }
 
+#if 0
 void BBand::cold_boot(uint16_t opcode, Packet *p) {
   if (p != 0) {
     uint8_t status = p->get();
@@ -429,12 +430,14 @@ void BBand::upload_patch(uint16_t opcode, Packet *p) {
     warm_boot(0, p);
   }
 }
+#endif
 
 void BBand::normal_operation(uint16_t opcode, Packet *p) {
   debug("OK 0x%04x\n", opcode);
   p->deallocate();
 }
 
+#if 0
 void BBand::warm_boot(uint16_t opcode, Packet *p) {
   assert(!uart.can_read());
 
@@ -676,4 +679,5 @@ void BBand::warm_boot(uint16_t opcode, Packet *p) {
 
   if (p) send(p);
 }
+#endif
 

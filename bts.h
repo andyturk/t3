@@ -1,3 +1,4 @@
+#ifndef __arm__
 #pragma once
 
 #include "assert.h"
@@ -65,7 +66,6 @@ namespace BTS {
     virtual void done();
   };
 
-#ifndef __arm__
   class SourceGenerator : public Script {
   protected:
     ostream *out;
@@ -87,42 +87,7 @@ namespace BTS {
     virtual void done() { cout << "done!\n"; }
     
   };
-#endif
-
-#ifdef __arm__
-  class H4Script : public Script, public Sequence {
-    H4Tranceiver h4;
-    uint16_t last_opcode;
-    uint8_t status;
-    uint32_t baud_rate;
-
-  public:
-    H4Script(H4Tranceiver &h4, uint8_t *bytes, uint16_t length);
-
-    void go();
-    virtual bool command_complete(uint16_t opcode, Packet *p);
-    
-
-    // Sequence methods
-
-    virtual bool is_complete() const;
-    virtual bool command_status(uint16_t opcode, Packet *p) { return false; }
-    virtual void restart() { assert(false); }
-    virtual void next() { play_next_action(); }
-
-    // Player methods
-    virtual void reset(const uint8_t *bytes, uint16_t length);
-    virtual void play_next_action();
-    virtual void send(Packet &p);
-    virtual void expect(uint32_t msec, Packet &p) {}
-    virtual void configure(uint32_t baud, flow_control control);
-    virtual void call(const char *filename) {}
-    virtual void comment(const char *text) {}
-    virtual void done();
-    virtual void error(const char *text) {}
-
-  };
-#endif
 };
+#endif
 
 

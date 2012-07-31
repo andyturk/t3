@@ -14,7 +14,7 @@
 #include "bd_addr.h"
 #include "packet.h"
 #include "h4.h"
-#include "bts.h"
+#include "sequence.h"
 
 extern const char hex_digits[16];
 
@@ -69,9 +69,9 @@ class BBand : public HostController {
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
 
   // initialization states
-  void cold_boot(uint16_t opcode, Packet *p);
-  void upload_patch(uint16_t opcode, Packet *p);
-  void warm_boot(uint16_t opcode, Packet *p);
+  // void cold_boot(uint16_t opcode, Packet *p);
+  // void upload_patch(uint16_t opcode, Packet *p);
+  // void warm_boot(uint16_t opcode, Packet *p);
   void normal_operation(uint16_t opcode, Packet *p);
   void command_complete(uint16_t opcode, Packet *p);
   

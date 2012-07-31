@@ -4,15 +4,9 @@
 #include <fstream>
 #include <iomanip>
 using namespace std;
-#endif
 
 #include "bts.h"
 #include "hal.h"
-
-#ifdef __arm__
-extern uint8_t bluetooth_init_cc2564[];
-extern size_t bluetooth_init_cc2564_size;
-#endif
 
 namespace BTS {
   Script::Script(uint8_t *bytes, uint16_t length) :
@@ -116,7 +110,6 @@ namespace BTS {
     }
   }
 
-#ifndef __arm__
   SourceGenerator::SourceGenerator(const char *n, uint8_t *bytes, uint16_t length) :
     Script(bytes, length),
     name(n),
@@ -225,107 +218,9 @@ namespace BTS {
     cerr << msg;
     exit(1);
   }
-#endif
-
-#ifdef __arm__
-  H4Script::H4Script(H4Tranceiver &h, uint8_t *bytes, uint16_t length) :
-    Script(bytes, length),
-    h4(h)
-  {
-  }
-
-  bool H4Script::is_complete() const {
-    return Script::is_complete() && last_opcode == 0;
-  }
-
-  void H4Script::reset(const uint8_t *bytes, uint16_t length) {
-    Script::reset(bytes, length);
-    h4.reset();
-    status = HCI::SUCCESS;
-    play_next_action();
-  }
-
-  bool H4Script::command_complete(uint16_t opcode, Packet *p) {
-    if (opcode != last_opcode) return false;
-    last_opcode = 0; // clear it out
-
-    switch (opcode) {
-    case OPCODE_PAN13XX_CHANGE_BAUD_RATE:
-      h4.uart->set_baud(baud_rate);
-      break;
-
-    default :
-      break;
-    }
-
-    debug("OK 0x%04x\n", opcode);
-    p->deallocate();
-    play_next_action();
-    return true;
-  }
-
-  void H4Script::play_next_action() {
-    Script::play_next_action();
-    h4.fill_uart();
-  }
-
-  void H4Script::send(Packet &action) {
-    Packet *out = h4.command_packets.allocate();
-
-    out->reset();
-    out->write((uint8_t *) action, action.get_remaining());
-    out->flip();
-    out->join(&h4.packets_to_send);
-
-    uint8_t indicator;
-
-    action >> indicator >> last_opcode;
-    assert(indicator == HCI::COMMAND_PACKET);
-
-    if (last_opcode == OPCODE_PAN13XX_CHANGE_BAUD_RATE) {
-      uint8_t parameter_length;
-      action >> parameter_length >> baud_rate;
-      assert(parameter_length == sizeof(baud_rate));
-    }
-    action.reset();
-  }
-
-  void H4Script::configure(uint32_t baud, flow_control control) {
-    h4.uart->set_baud(baud);
-    assert(control == HARDWARE || control == NO_CHANGE);
-    play_next_action();
-  }
-
-  void H4Script::done() {
-    for(;;);
-  }
-
-
-  void H4Script::go() {
-    /*
-  __asm("cpsid i");
-    H4Controller *saved = h4.get_controller();
-    h4.set_controller(this);
-  __asm("cpsie i");
-    */
-    //reset(bluetooth_init_cc2564, bluetooth_init_cc2564_size);
-
-  /*
-  while (!is_complete()) {
-    asm volatile ("wfi");
-  }
-  */
-  /*
-  __asm("cpsid i");
-    h4.set_controller(saved);
-  __asm("cpsie i");
-  */
-  }
-#endif
 };
 
 
-#ifndef __arm__
 void file_as_bytes(const char *file, uint8_t *&value, size_t &size) {
   value = 0;
   size = 0;
