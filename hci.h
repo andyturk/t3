@@ -69,6 +69,8 @@ class BBand : public HostController {
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
 
   // initialization states
+  void execute_commands(Sequence &s);
+
   // void cold_boot(uint16_t opcode, Packet *p);
   // void upload_patch(uint16_t opcode, Packet *p);
   // void warm_boot(uint16_t opcode, Packet *p);

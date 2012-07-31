@@ -88,16 +88,20 @@ void BBand::initialize() {
   uart.set_interrupt_enable(true);
 
   CPU::delay(150); // wait 150 msec
+  execute_commands(oem_boot_script);
 
-  script = &oem_boot_script;
-  script->next();
-  while (!script->is_complete()) {
+  //cold_boot(0, 0);
+}
+
+void BBand::execute_commands(Sequence &s) {
+  assert(script == 0);
+  script = &s;
+  s.next();
+  while (!s.is_complete()) {
     process_incoming_packets();
     asm volatile ("wfi");
   }
   script = 0;
-
-  //cold_boot(0, 0);
 }
 
 void HostController::send(Packet *p) {
