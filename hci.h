@@ -14,7 +14,7 @@
 #include "bd_addr.h"
 #include "packet.h"
 #include "h4.h"
-#include "sequence.h"
+#include "script.h"
 
 extern const char hex_digits[16];
 
@@ -63,13 +63,13 @@ class BBand : public HostController {
   UART &uart;
   IOPin &shutdown;
   Pool<HCI::Connection, 3> hci_connection_pool;
-  Sequence *script;
+  Script *script;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
 
   // initialization states
-  void execute_commands(Sequence &s);
+  void execute_commands(Script &s);
 
   // void cold_boot(uint16_t opcode, Packet *p);
   // void upload_patch(uint16_t opcode, Packet *p);

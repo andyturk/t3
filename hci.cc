@@ -44,16 +44,16 @@ extern H4Tranceiver h4;
 extern "C" const uint8_t bluetooth_init_cc2564[];
 extern uint32_t bluetooth_init_cc2564_size;
 
-class _bluetooth_init_cc2564 : public CannedSequence {
+class _bluetooth_init_cc2564 : public CannedScript {
 public:
-  _bluetooth_init_cc2564() : CannedSequence(::h4, bluetooth_init_cc2564, bluetooth_init_cc2564_size) {}
+  _bluetooth_init_cc2564() : CannedScript(::h4, bluetooth_init_cc2564, bluetooth_init_cc2564_size) {}
 
   virtual bool command_complete(uint16_t opcode, Packet *p) {
     if (opcode == OPCODE_PAN13XX_CHANGE_BAUD_RATE) {
       h4.uart->set_baud(baud_rate);
     }
 
-    return CannedSequence::command_complete(opcode, p);
+    return CannedScript::command_complete(opcode, p);
   }
 };
 
@@ -80,7 +80,7 @@ void BBand::initialize() {
   //cold_boot(0, 0);
 }
 
-void BBand::execute_commands(Sequence &s) {
+void BBand::execute_commands(Script &s) {
   assert(script == 0);
   script = &s;
 

@@ -3,7 +3,7 @@
 
 #include "assert.h"
 #include "packet.h"
-#include "sequence.h"
+#include "script.h"
 
 /*
  * Derived from http://www.codeforge.com/article/39565

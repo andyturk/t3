@@ -1,23 +1,23 @@
-#include "sequence.h"
+#include "script.h"
 #include "assert.h"
 #include "debug.h"
 
-CannedSequence::CannedSequence(H4Tranceiver &t, const uint8_t *bytes, uint16_t length) :
-  Sequence(t),
+CannedScript::CannedScript(H4Tranceiver &t, const uint8_t *bytes, uint16_t length) :
+  Script(t),
   bytes((uint8_t *) bytes, length),
   last_opcode(0)
 {
 }
 
-bool CannedSequence::is_complete() const {
+bool CannedScript::is_complete() const {
   return bytes.get_remaining() == 0 && last_opcode == 0;
 }
 
-bool CannedSequence::is_pending() const {
+bool CannedScript::is_pending() const {
   return last_opcode != 0;
 }
 
-bool CannedSequence::command_complete(uint16_t opcode, Packet *p) {
+bool CannedScript::command_complete(uint16_t opcode, Packet *p) {
   if (opcode == last_opcode) {
     debug("OK 0x%04x\n", opcode);
     last_opcode = 0;
@@ -29,7 +29,7 @@ bool CannedSequence::command_complete(uint16_t opcode, Packet *p) {
   }
 }
 
-bool CannedSequence::command_status(uint16_t opcode, Packet *p) {
+bool CannedScript::command_status(uint16_t opcode, Packet *p) {
   if (opcode == last_opcode) {
     p->deallocate();
     return true;
@@ -38,12 +38,12 @@ bool CannedSequence::command_status(uint16_t opcode, Packet *p) {
   }
 }
 
-void CannedSequence::restart() {
+void CannedScript::restart() {
   bytes.rewind();
   last_opcode = 0;
 }
 
-void CannedSequence::next() {
+void CannedScript::next() {
   if (bytes.get_remaining() > 0) {
     assert(bytes.get_remaining() >= 4);
     assert(last_opcode == 0);

@@ -3,12 +3,12 @@
 #include <stdint.h>
 #include "h4.h"
 
-class Sequence {
+class Script {
  protected:
   H4Tranceiver &h4;
 
  public:
-  Sequence(H4Tranceiver &t) : h4(t) {}
+  Script(H4Tranceiver &t) : h4(t) {}
 
   virtual bool is_complete() const = 0;
   virtual bool is_pending() const = 0;
@@ -18,7 +18,7 @@ class Sequence {
   virtual void next() = 0;
 };
 
-class CannedSequence : public Sequence {
+class CannedScript : public Script {
  protected:
   Packet bytes;
   Packet command;
@@ -26,7 +26,7 @@ class CannedSequence : public Sequence {
   uint32_t baud_rate;
 
  public:
-  CannedSequence(H4Tranceiver &t, const uint8_t *bytes, uint16_t length);
+  CannedScript(H4Tranceiver &t, const uint8_t *bytes, uint16_t length);
 
   virtual bool is_complete() const;
   virtual bool is_pending() const;
