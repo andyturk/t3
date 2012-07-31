@@ -33,7 +33,7 @@ CFLAGS += -mcpu=cortex-m3 -mthumb -g -Dgcc -DPART_LM3S9D96 -fms-extensions -Wall
 CFLAGS += -DDEBUG=1
 CFLAGS += -Wno-pmf-conversions -Wno-psabi -std=gnu++0x
 
-LDFLAGS = -nostdlib -fno-builtin -nostartfiles -nodefaultlibs -T lm3s9d96.ld
+LDFLAGS = --gc-sections -nostdlib -fno-builtin -nostartfiles -nodefaultlibs -T lm3s9d96.ld
 
 vpath %.c . $(BUILD) $(TI_CMSIS)/Source
 vpath %.cc . $(BUILD)
