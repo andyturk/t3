@@ -44,18 +44,18 @@ extern H4Tranceiver h4;
 extern "C" const uint8_t bluetooth_init_cc2564[];
 extern uint32_t bluetooth_init_cc2564_size;
 
-class _bluetooth_init_cc2564 : public CannedScript {
-public:
-  _bluetooth_init_cc2564() : CannedScript(::h4, bluetooth_init_cc2564, bluetooth_init_cc2564_size) {}
+BBand::HCIScript::HCIScript(uint8_t *bytes, uint16_t length) :
+  CannedScript(::h4, bytes, length)
+{
+}
 
-  virtual bool command_complete(uint16_t opcode, Packet *p) {
-    if (opcode == OPCODE_PAN13XX_CHANGE_BAUD_RATE) {
-      h4.uart->set_baud(baud_rate);
-    }
-
-    return CannedScript::command_complete(opcode, p);
+bool BBand::HCIScript::command_complete(uint16_t opcode, Packet *p) {
+  if (opcode == OPCODE_PAN13XX_CHANGE_BAUD_RATE) {
+    h4.uart->set_baud(baud_rate);
   }
-};
+
+  return CannedScript::command_complete(opcode, p);
+}
 
 void BBand::initialize() {
   uart.set_enable(false);
@@ -74,13 +74,13 @@ void BBand::initialize() {
 
   CPU::delay(150); // wait 150 msec
 
-  _bluetooth_init_cc2564 oem_boot_script;
+  HCIScript oem_boot_script((uint8_t *) bluetooth_init_cc2564, bluetooth_init_cc2564_size);
   execute_commands(oem_boot_script);
 
   //cold_boot(0, 0);
 }
 
-void BBand::execute_commands(Script &s) {
+void BBand::execute_commands(HCIScript &s) {
   assert(script == 0);
   script = &s;
 

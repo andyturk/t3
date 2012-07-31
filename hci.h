@@ -60,16 +60,22 @@ class HostController : public H4Controller {
 };
 
 class BBand : public HostController {
+  class HCIScript : public CannedScript {
+  public:
+    HCIScript(uint8_t *bytes, uint16_t length);
+    virtual bool command_complete(uint16_t opcode, Packet *p);
+  };
+
   UART &uart;
   IOPin &shutdown;
   Pool<HCI::Connection, 3> hci_connection_pool;
-  Script *script;
+  HCIScript *script;
 
   void (*event_handler)(BBand *, uint8_t event, Packet *);
   void (*command_complete_handler)(BBand *, uint16_t opcode, Packet *);
 
   // initialization states
-  void execute_commands(Script &s);
+  void execute_commands(HCIScript &s);
 
   // void cold_boot(uint16_t opcode, Packet *p);
   // void upload_patch(uint16_t opcode, Packet *p);
