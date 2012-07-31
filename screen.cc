@@ -1,3 +1,4 @@
+#ifdef DEBUG
 #include <cstdio>
 #include <stdarg.h>
 #include "screen.h"
@@ -82,3 +83,4 @@ void Screen::debug_(const char *format, ...) {
   va_end(args);
   text(buffer);
 }
+#endif

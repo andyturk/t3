@@ -7,7 +7,10 @@
 #include "h4.h"
 #include "att.h"
 #include "gatt.h"
+
+#ifdef DEBUG
 #include "screen.h"
+#endif
 
 IOPin led1('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);
@@ -41,7 +44,10 @@ MyService my;
 extern "C" int main() {
   CPU::set_clock_rate_50MHz();
   CPU::set_master_interrupt_enable(false);
+
+#ifdef DEBUG
   Screen::the_screen.initialize();
+#endif
 
   led1.configure();
   pc4.configure();
@@ -60,7 +66,10 @@ extern "C" int main() {
   h4.set_controller(&pan1323);
   CPU::set_master_interrupt_enable(true);
   
+#ifdef DEBUG
   AttributeBase::dump_attributes();
+#endif
+
   pan1323.initialize();
 
   do {
