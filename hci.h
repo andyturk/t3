@@ -61,8 +61,20 @@ class HostController : public H4Controller {
 
 class BBand : public HostController {
   class HCIScript : public CannedScript {
+  protected:
+    BBand &bb;
+
   public:
-    HCIScript(uint8_t *bytes, uint16_t length);
+    HCIScript(BBand &b, uint8_t *bytes, uint16_t length);
+    virtual bool command_complete(uint16_t opcode, Packet *p);
+  };
+
+  class WarmBootScript : public HCIScript {
+  protected:
+    virtual void send(Packet *p);
+
+  public:
+    WarmBootScript(BBand &b);
     virtual bool command_complete(uint16_t opcode, Packet *p);
   };
 

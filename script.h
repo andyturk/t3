@@ -6,6 +6,8 @@
 class Script {
  protected:
   H4Tranceiver &h4;
+  virtual void send(Packet *p);
+  Packet *allocate_packet();
 
  public:
   Script(H4Tranceiver &t) : h4(t) {}
@@ -21,9 +23,13 @@ class Script {
 class CannedScript : public Script {
  protected:
   Packet bytes;
-  Packet command;
   uint16_t last_opcode;
   uint32_t baud_rate;
+  void (*state)(CannedScript *);
+
+ protected:
+  Packet *next_canned_command();
+  virtual void send(Packet *p);
 
  public:
   CannedScript(H4Tranceiver &t, const uint8_t *bytes, uint16_t length);
@@ -33,5 +39,5 @@ class CannedScript : public Script {
   virtual bool command_complete(uint16_t opcode, Packet *p);
   virtual bool command_status(uint16_t opcode, Packet *p);
   virtual void restart();
-  virtual void next();
+  virtual void next() { (*state)(this); }
 };

@@ -2,10 +2,20 @@
 #include "assert.h"
 #include "debug.h"
 
+Packet *Script::allocate_packet() {
+  return h4.command_packets.allocate();
+}
+
+void Script::send(Packet *p) {
+  p->join(&h4.packets_to_send);
+  h4.fill_uart();
+}
+
 CannedScript::CannedScript(H4Tranceiver &t, const uint8_t *bytes, uint16_t length) :
   Script(t),
   bytes((uint8_t *) bytes, length),
-  last_opcode(0)
+  last_opcode(0),
+  state(&next_canned_command)
 {
 }
 
@@ -19,7 +29,10 @@ bool CannedScript::is_pending() const {
 
 bool CannedScript::command_complete(uint16_t opcode, Packet *p) {
   if (opcode == last_opcode) {
-    debug("OK 0x%04x\n", opcode);
+    uint8_t status;
+
+    *p >> status;
+    debug("opcode 0x%04x status=0x%02x\n", opcode, status);
     last_opcode = 0;
     p->deallocate();
     next();
@@ -43,12 +56,17 @@ void CannedScript::restart() {
   last_opcode = 0;
 }
 
-void CannedScript::next() {
+void CannedScript::send(Packet *p) {
+  debug("send 0x%04x\n", last_opcode);
+  Script::send(p);
+}
+
+Packet *CannedScript::next_canned_command() {
   if (bytes.get_remaining() > 0) {
     assert(bytes.get_remaining() >= 4);
     assert(last_opcode == 0);
 
-    Packet *p = h4.command_packets.allocate();
+    Packet *p = allocate_packet();
     assert(p != 0);
 
     uint8_t indicator, parameter_length, *start;
@@ -61,10 +79,8 @@ void CannedScript::next() {
     p->reset();
     p->write(start, 4 + parameter_length);
     p->flip();
-    p->join(&h4.packets_to_send);
-    h4.fill_uart();
 
-    debug("send 0x%04x\n", last_opcode);
+    send(p);
 
     if (last_opcode == OPCODE_PAN13XX_CHANGE_BAUD_RATE) {
       assert(parameter_length == sizeof(baud_rate));
@@ -72,5 +88,9 @@ void CannedScript::next() {
     } else {
       bytes.skip(parameter_length);
     }
+
+    return p;
+  } else {
+    return 0;
   }
 }

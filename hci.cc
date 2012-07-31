@@ -43,9 +43,14 @@ extern H4Tranceiver h4;
 
 extern "C" const uint8_t bluetooth_init_cc2564[];
 extern uint32_t bluetooth_init_cc2564_size;
+extern "C" const uint8_t cold_boot[];
+extern uint32_t cold_boot_size;
+extern "C" const uint8_t warm_boot[];
+extern uint32_t warm_boot_size;
 
-BBand::HCIScript::HCIScript(uint8_t *bytes, uint16_t length) :
-  CannedScript(::h4, bytes, length)
+BBand::HCIScript::HCIScript(BBand &b, uint8_t *bytes, uint16_t length) :
+  CannedScript(::h4, bytes, length),
+  bb(b)
 {
 }
 
@@ -55,6 +60,38 @@ bool BBand::HCIScript::command_complete(uint16_t opcode, Packet *p) {
   }
 
   return CannedScript::command_complete(opcode, p);
+}
+
+BBand::WarmBootScript::WarmBootScript(BBand &b) :
+  HCIScript(b, (uint8_t *) warm_boot, warm_boot_size)
+{
+}
+
+void BBand::WarmBootScript::send(Packet *p) {
+  if (last_opcode == OPCODE_LE_SET_ADVERTISING_PARAMETERS) {
+    p->skip(11); // to start of "Direct Address" parameter
+    p->write((uint8_t *) &bb.bd_addr, sizeof(BD_ADDR));
+    p->rewind();
+  }
+
+  HCIScript::send(p);
+}
+
+bool BBand::WarmBootScript::command_complete(uint16_t opcode, Packet *p) {
+  if (opcode == last_opcode && opcode == OPCODE_READ_BD_ADDR) {
+    uint8_t status;
+    *p >> status;
+
+    if (status == HCI::SUCCESS) {
+      p->read((uint8_t *) &bb.bd_addr, sizeof(bb.bd_addr));
+    }
+    p->deallocate();
+    last_opcode = 0;
+    next();
+    return true;
+  } else {
+    return HCIScript::command_complete(opcode, p);
+  }
 }
 
 void BBand::initialize() {
@@ -74,8 +111,14 @@ void BBand::initialize() {
 
   CPU::delay(150); // wait 150 msec
 
-  HCIScript oem_boot_script((uint8_t *) bluetooth_init_cc2564, bluetooth_init_cc2564_size);
+  HCIScript cold_boot_script(*this, (uint8_t *) cold_boot, cold_boot_size);
+  execute_commands(cold_boot_script);
+
+  HCIScript oem_boot_script(*this, (uint8_t *) bluetooth_init_cc2564, bluetooth_init_cc2564_size);
   execute_commands(oem_boot_script);
+
+  WarmBootScript warm_boot_script(*this);
+  execute_commands(warm_boot_script);
 
   //cold_boot(0, 0);
 }
