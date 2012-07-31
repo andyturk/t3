@@ -21,6 +21,10 @@ void H4Tranceiver::reset() {
   rx_new_packet(); // start looking for a new packet
 }
 
+void H4Tranceiver::wait_for_packets() {
+  while (packets_received.empty()) asm volatile ("wfi");
+}
+
 void H4Tranceiver::drain_uart() {
   assert(rx == 0 || rx->get_remaining() > 0);
 

@@ -70,6 +70,9 @@ $(OBJ)/bluetooth_init_cc2564.o : $(BUILD)/bluetooth_init_cc2564.cc
 $(BUILD)/bluetooth_init_cc2564.cc :
 	$(MAKE) -f host.mk $@
 
+$(BIN)/.gdbinit : .gdbinit
+	cp .gdbinit $(BIN)
+
 $(OBJ)/%.o : %.S $(OBJ)/.sentinel
 	$(AS) $< -o $@
 
@@ -79,6 +82,6 @@ $(BUILD)/vector_table.cc : generate_vector_table.py $(BUILD)/.sentinel
 $(BIN)/$(NAME).bin : $(BIN)/$(NAME).elf $(BIN)/.sentinel
 	$(OBJCOPY) -Obinary $< $@
 
-$(BIN)/$(NAME).elf : $(OBJECTS) lm3s9d96.ld $(BIN)/.sentinel
+$(BIN)/$(NAME).elf : $(OBJECTS) lm3s9d96.ld $(BIN)/.gdbinit $(BIN)/.sentinel 
 	$(CC) $(LDFLAGS) -o $(BIN)/$(NAME).elf $(OBJECTS) -L$(ARMLIBS) -L. -lstellaris
 	$(OBJDUMP) -d $(BIN)/$(NAME).elf >$(BUILD)/$(NAME).asm

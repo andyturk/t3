@@ -42,6 +42,7 @@ class H4Tranceiver {
   H4Controller *get_controller() const { return controller; }
   void set_controller(H4Controller *c) { controller = c; }
 
+  void wait_for_packets();
   void reset();
   void fill_uart();
   void uart_interrupt();

@@ -46,22 +46,7 @@ extern uint32_t bluetooth_init_cc2564_size;
 
 class _bluetooth_init_cc2564 : public CannedSequence {
 public:
-  _bluetooth_init_cc2564() : CannedSequence(bluetooth_init_cc2564, bluetooth_init_cc2564_size) {}
-
-  virtual void next() {
-    CannedSequence::next();
-
-    debug("send 0x%04x\n", last_opcode);
-
-    Packet *out = h4.command_packets.allocate();
-
-    out->reset();
-    out->write((uint8_t *) command, command.get_remaining());
-    out->flip();
-    out->join(&h4.packets_to_send);
-
-    h4.fill_uart();
-  }
+  _bluetooth_init_cc2564() : CannedSequence(::h4, bluetooth_init_cc2564, bluetooth_init_cc2564_size) {}
 
   virtual bool command_complete(uint16_t opcode, Packet *p) {
     if (opcode == OPCODE_PAN13XX_CHANGE_BAUD_RATE) {
@@ -70,7 +55,7 @@ public:
 
     return CannedSequence::command_complete(opcode, p);
   }
-} oem_boot_script;
+};
 
 void BBand::initialize() {
   uart.set_enable(false);
@@ -88,6 +73,8 @@ void BBand::initialize() {
   uart.set_interrupt_enable(true);
 
   CPU::delay(150); // wait 150 msec
+
+  _bluetooth_init_cc2564 oem_boot_script;
   execute_commands(oem_boot_script);
 
   //cold_boot(0, 0);
@@ -96,11 +83,14 @@ void BBand::initialize() {
 void BBand::execute_commands(Sequence &s) {
   assert(script == 0);
   script = &s;
-  s.next();
-  while (!s.is_complete()) {
+
+  script->next();
+
+  do {
+    h4.wait_for_packets();
     process_incoming_packets();
-    asm volatile ("wfi");
-  }
+  } while (!s.is_complete());
+
   script = 0;
 }
 
