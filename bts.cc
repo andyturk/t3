@@ -115,7 +115,14 @@ namespace BTS {
     name(n),
     out(&cout)
   {
-    *out << "#include <stdint.h>\n";
+    *out << "extern \"C\" const uint8_t " << name << "[] = {\n";
+  }
+
+  SourceGenerator::SourceGenerator(const char *name) :
+    Script(0, 0),
+    name(name),
+    out(&cout)
+  {
     *out << "extern \"C\" const uint8_t " << name << "[] = {\n";
   }
 
@@ -237,23 +244,31 @@ void file_as_bytes(const char *file, uint8_t *&value, size_t &size) {
   }
 }
 
-int main(int argc, char *argv[]) {
-  if (argc < 3) {
-    cerr << "usage: bts <bts file> <decl name>\n";
-    exit(1);
-  }
+void oem_cc2564_script() {
+  const char *file = "bluetooth_init_cc2564_2.1.bts";
 
   uint8_t *raw_patch;
   size_t raw_patch_size;
 
-  file_as_bytes(argv[1], raw_patch, raw_patch_size);
+  file_as_bytes(file, raw_patch, raw_patch_size);
 
   if (raw_patch == 0 || raw_patch_size == 0) {
-    cerr << "couldn't load " << argv[1] << endl;
+    cerr << "couldn't load " << file << endl;
     exit(1);
   }
 
-  BTS::SourceGenerator code(argv[2], raw_patch, raw_patch_size);
+  BTS::SourceGenerator code("bluetooth_init_cc2564", raw_patch, raw_patch_size);
+  SizedPacket<259> p;
+
+
+  // send OEM patch
+  code.comment(file);
+  code.emit(raw_patch, raw_patch_size);
+  delete raw_patch;
+}
+
+void cold_boot_script() {
+  BTS::SourceGenerator code("cold_boot");
   SizedPacket<259> p;
 
   code.comment("Reset Pan13XX");
@@ -269,11 +284,11 @@ int main(int argc, char *argv[]) {
   // code.comment("Change baud rate to 921600 since we'll be downloading large patches");
   // (p.hci(HCI::OPCODE_PAN13XX_CHANGE_BAUD_RATE) << (uint32_t) 921600L).flip();
   // code.send(p);
+}
 
-  // send OEM patch
-  code.comment(argv[1]);
-  code.emit(raw_patch, raw_patch_size);
-  delete raw_patch;
+void warm_boot_script() {
+  BTS::SourceGenerator code("warm_boot");
+  SizedPacket<259> p;
 
   code.comment("Disable sleep modes");
   p.hci(HCI::OPCODE_SLEEP_MODE_CONFIGURATIONS);
@@ -362,6 +377,18 @@ int main(int argc, char *argv[]) {
   p << (uint8_t) 0x00;
   p.prepare_for_tx();
   code.send(p);
+}
 
+int main(int argc, char *argv[]) {
+  if (argc < 3) {
+    cerr << "usage: bts <bts file> <decl name>\n";
+    exit(1);
+  }
+
+  cout << "#include <stdint.h>\n";
+
+  oem_cc2564_script();
+  cold_boot_script();
+  warm_boot_script();
 }
 #endif

@@ -17,7 +17,6 @@ class CannedSequence : public Sequence {
   Packet bytes;
   Packet command;
   uint16_t last_opcode;
-  uint8_t status;
   uint32_t baud_rate;
 
  public:

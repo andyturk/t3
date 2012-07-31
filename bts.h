@@ -74,7 +74,8 @@ namespace BTS {
     void as_hex(const uint8_t *bytes, uint16_t size, const char *start = 0);
 
   public:
-    SourceGenerator(const char *n, uint8_t *bytes, uint16_t length);
+    SourceGenerator(const char *name, uint8_t *bytes, uint16_t length);
+    SourceGenerator(const char *name);
     ~SourceGenerator();
 
     void emit(const uint8_t *bytes, uint16_t size);
