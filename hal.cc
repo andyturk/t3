@@ -307,8 +307,10 @@ SysTick::SysTick(uint32_t msec) :
 }
 
 void SysTick::configure() {
+  uint32_t clock = CPU::get_clock_rate();
+
   SysTickEnable();
-  SysTickPeriodSet((CPU::get_clock_rate()/1000)*msec);
+  SysTickPeriodSet((clock/1000)*msec);
 }
 
 void SysTick::initialize() {

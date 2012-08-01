@@ -17,7 +17,7 @@ IOPin pc4('C', 4, IOPin::OUTPUT);
 //UART0 uart0;
 UART1 uart1;
 BBand pan1323(uart1, pc4);
-SysTick systick(1000);
+SysTick systick(100);
 H4Tranceiver h4(&uart1);
 ATT_Channel att_channel(pan1323);
 GAP_Service gap("Test Dev 1");
@@ -59,7 +59,6 @@ extern "C" int main() {
   //  UARTStdioInitExpClk(0, 115200); // UART0 is the console
   // debug("console initialized\n");
 
-  //systick.initialize();
 
   led1.initialize();
   led1.set_value(0);
@@ -71,6 +70,7 @@ extern "C" int main() {
 #endif
 
   pan1323.initialize();
+  systick.initialize();
 
   do {
     pan1323.process_incoming_packets();
@@ -81,5 +81,14 @@ extern "C" int main() {
 
 extern "C" void __attribute__ ((isr)) uart_1_handler() {
   h4.uart_interrupt();
+}
+
+uint32_t systick_counter = 0;
+
+extern "C" void __attribute__ ((isr)) systick_handler() {
+  if (systick_counter++ == 100) {
+    debug("tick!/100\n");
+    systick_counter = 0;
+  }
 }
 
