@@ -397,11 +397,15 @@ void warm_boot_script() {
   {
     code.comment("le set advertising data");
     p.hci(HCI::OPCODE_LE_SET_ADVERTISING_DATA);
+    uint8_t *start0 = p.ptr();
+
+    p << (uint8_t) 0; // dummy
+
     Packet adv(p.ptr(), 31);
-    uint8_t *start0, *start;
+    uint8_t *start;
 
     // data item 1
-    start = start0 = adv.ptr();
+    start = adv.ptr();
     adv << (uint8_t) 0; // dummy length
     adv << (uint8_t) GAP::FLAGS;
     adv << (uint8_t) (GAP::LE_LIMITED_DISCOVERABLE_MODE | GAP::BR_EDR_NOT_SUPPORTED);
@@ -414,25 +418,29 @@ void warm_boot_script() {
     adv << (uint16_t) 0xfff0; // demo UUID not in the Bluetooth spec
     *start = (adv.ptr() - start) - 1;
   
+    *start0 = adv.tell();
+
     // zero pad to 31 bytes
     while (adv.get_position() < 31) adv << (uint8_t) 0;
     assert(adv.get_position() == 31);
   
-    *start0 = adv.get_position();
     p.skip(31);
     p.prepare_for_tx();
     code.send(p);
   }
 
   {
-    code.comment("advertising data set\n");
-    p.hci(OPCODE_LE_SET_SCAN_RESPONSE_DATA) << (uint8_t) 0;
-    assert(p.get_remaining() > 31);
+    code.comment("le set scan response data");
+    p.hci(OPCODE_LE_SET_SCAN_RESPONSE_DATA);
+    uint8_t *start0 = p.ptr();
+
+    p << (uint8_t) 0; // dummy
+
     Packet adv(p.ptr(), 31); // a piece of the main packet
-    uint8_t *start0, *start;
+    uint8_t *start;
 
     // data item 1
-    start = start0 = adv.ptr();
+    start = adv.ptr();
     adv << (uint8_t) 0; // dummy length
     adv << (uint8_t) GAP::FLAGS;
     adv << (uint8_t) (GAP::LE_LIMITED_DISCOVERABLE_MODE | GAP::BR_EDR_NOT_SUPPORTED);
@@ -445,11 +453,11 @@ void warm_boot_script() {
     adv << (uint16_t) 0xfff0; // demo UUID not in the Bluetooth spec
     *start = (adv.ptr() - start) - 1;
 
+    *start0 = adv.tell();
+
     // zero pad to 31 bytes
     while (adv.get_position() < 31) adv << (uint8_t) 0;
     assert(adv.get_position() == 31);
-
-    *start0 = adv.get_position();
 
     p.skip(31);
     p.prepare_for_tx();
