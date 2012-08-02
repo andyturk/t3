@@ -82,3 +82,46 @@ typedef union {
     unsigned int _reserved1 : 16;
   } __attribute__ ((packed));
 } uart_interrupt_mask;
+
+
+/**
+  * @brief Register map for ADC0 peripheral (ADC0)
+  */
+
+typedef struct {                                    /*!< ADC0 Structure                                                        */
+  __IO uint32_t  ACTSS;                             /*!< ADC Active Sample Sequencer                                           */
+  __IO uint32_t  RIS;                               /*!< ADC Raw Interrupt Status                                              */
+  __IO uint32_t  IM;                                /*!< ADC Interrupt Mask                                                    */
+  __IO uint32_t  ISC;                               /*!< ADC Interrupt Status and Clear                                        */
+  __IO uint32_t  OSTAT;                             /*!< ADC Overflow Status                                                   */
+  __IO uint32_t  EMUX;                              /*!< ADC Event Multiplexer Select                                          */
+  __IO uint32_t  USTAT;                             /*!< ADC Underflow Status                                                  */
+  __I  uint32_t  RESERVED0;
+  __IO uint32_t  SSPRI;                             /*!< ADC Sample Sequencer Priority                                         */
+  __IO uint32_t  SPC;                               /*!< ADC Sample Phase Control                                              */
+  __IO uint32_t  PSSI;                              /*!< ADC Processor Sample Sequence Initiate                                */
+  __I  uint32_t  RESERVED1;
+  __IO uint32_t  SAC;                               /*!< ADC Sample Averaging Control                                          */
+  __IO uint32_t  DCISC;                             /*!< ADC Digital Comparator Interrupt Status and Clear                     */
+  __IO uint32_t  CTL;                               /*!< ADC Control                                                           */
+  __I  uint32_t  RESERVED2;
+
+  struct {
+    __IO uint32_t  MUX;                            /*!< ADC Sample Sequence Input Multiplexer Select 0                        */
+    __IO uint32_t  CTL;                            /*!< ADC Sample Sequence Control 0                                         */
+    __IO uint32_t  FIFO;                           /*!< ADC Sample Sequence Result FIFO 0                                     */
+    __IO uint32_t  FSTAT;                          /*!< ADC Sample Sequence FIFO 0 Status                                     */
+    __IO uint32_t  OP;                             /*!< ADC Sample Sequence 0 Operation                                       */
+    __IO uint32_t  DC;                             /*!< ADC Sample Sequence 0 Digital Comparator Select                       */
+    __IO uint32_t  EMUX;                           // ???
+    __I  uint32_t  RESERVED3[1];
+  } __attribute__ ((packed)) SS[4];
+
+  __I  uint32_t  RESERVED4[784];
+  __IO uint32_t  DCRIC;                             /*!< ADC Digital Comparator Reset Initial Conditions                       */
+  __I  uint32_t  RESERVED5[63];
+  __IO uint32_t  DCCTL[8];                          /*!< ADC Digital Comparator Controls                                       */
+  __I  uint32_t  RESERVED6[8];
+  __IO uint32_t  DCCMP[8];                          /*!< ADC Digital Comparator Range                                          */
+} adc_register_map;
+

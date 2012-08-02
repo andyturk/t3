@@ -7,6 +7,7 @@
 #include "h4.h"
 #include "att.h"
 #include "gatt.h"
+#include "adc.h"
 
 #ifdef DEBUG
 #include "screen.h"
@@ -15,9 +16,9 @@
 IOPin led1('F', 3, IOPin::LED);
 IOPin pc4('C', 4, IOPin::OUTPUT);
 //UART0 uart0;
-UART1 uart1;
+UART_1 uart1;
 BBand pan1323(uart1, pc4);
-SysTick systick(100);
+Systick systick(100);
 H4Tranceiver h4(&uart1);
 ATT_Channel att_channel(pan1323);
 GAP_Service gap("Test Dev 1");
@@ -54,6 +55,7 @@ extern "C" int main() {
   //uart0.configure();
   uart1.configure();
   uart1.initialize();
+  adc_init();
   systick.configure();
 
   //  UARTStdioInitExpClk(0, 115200); // UART0 is the console
@@ -86,8 +88,10 @@ extern "C" void __attribute__ ((isr)) uart_1_handler() {
 uint32_t systick_counter = 0;
 
 extern "C" void __attribute__ ((isr)) systick_handler() {
-  if (systick_counter++ == 100) {
-    debug("tick!/100\n");
+  if (systick_counter++ == 10) {
+    int degrees = get_temperature_farenheit();
+
+    debug("the temperature is %dF\n", degrees);
     systick_counter = 0;
   }
 }

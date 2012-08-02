@@ -1,5 +1,7 @@
+#include "LM3S9D96.h"
+
 #include "inc/hw_types.h"
-#include "inc/hw_memmap.h"
+// #include "inc/hw_memmap.h"
 #include "inc/hw_ints.h"
 #include "driverlib/cpu.h"
 #include "driverlib/rom_map.h"
@@ -28,6 +30,9 @@ bool CPU::set_master_interrupt_enable(bool value) {
   return (value ? CPUcpsie() : CPUcpsid()) != 0;
 }
 
+Peripheral::Peripheral() {
+}
+
 Peripheral::Peripheral(void *base, uint32_t id, uint32_t interrupt) :
   base(base), id(id), interrupt(interrupt)
 {
@@ -49,6 +54,7 @@ void Peripheral::pend_interrupt() {
   IntPendSet(interrupt);
 }
 
+/*
 static uint32_t gpio_id_from_name(char name) {
   switch (name) {
   case 'A' : return SYSCTL_PERIPH_GPIOA;
@@ -93,14 +99,70 @@ static uint32_t gpio_interrupt_from_name(char name) {
   default  : return 0xffffffff;
   }
 }
+*/
 
-IOPort::IOPort(char name) :
-  Peripheral(
-    gpio_base_from_name(name),
-    gpio_id_from_name(name),
-    gpio_interrupt_from_name(name)
-  )
-{
+IOPort::IOPort(char name) {
+  switch (name) {
+  case 'A' :
+    base = (void *) GPIOA_BASE;
+    id = SYSCTL_PERIPH_GPIOA;
+    interrupt = INT_GPIOA;
+    break;
+
+  case 'B' :
+    base = (void *) GPIOB_BASE;
+    id = SYSCTL_PERIPH_GPIOB;
+    interrupt = INT_GPIOB;
+    break;
+
+  case 'C' :
+    base = (void *) GPIOC_BASE;
+    id = SYSCTL_PERIPH_GPIOC;
+    interrupt = INT_GPIOC;
+    break;
+
+  case 'D' :
+    base = (void *) GPIOD_BASE;
+    id = SYSCTL_PERIPH_GPIOD;
+    interrupt = INT_GPIOD;
+    break;
+
+  case 'E' :
+    base = (void *) GPIOE_BASE;
+    id = SYSCTL_PERIPH_GPIOE;
+    interrupt = INT_GPIOE;
+    break;
+
+  case 'F' :
+    base = (void *) GPIOF_BASE;
+    id = SYSCTL_PERIPH_GPIOF;
+    interrupt = INT_GPIOF;
+    break;
+
+  case 'G' :
+    base = (void *) GPIOG_BASE;
+    id = SYSCTL_PERIPH_GPIOG;
+    interrupt = INT_GPIOG;
+    break;
+
+  case 'H' :
+    base = (void *) GPIOH_BASE;
+    id = SYSCTL_PERIPH_GPIOH;
+    interrupt = INT_GPIOH;
+    break;
+
+  case 'J' :
+    base = (void *) GPIOJ_BASE;
+    id = SYSCTL_PERIPH_GPIOJ;
+    interrupt = INT_GPIOJ;
+    break;
+
+  default  :
+    base = (void *) 0xffffffff;
+    id = 0;
+    interrupt = 0;
+    break;
+  }
 }
 
 IOPin::IOPin(char name, uint8_t pin, pin_type type) :
@@ -267,25 +329,25 @@ uint32_t UART::clear_interrupt_cause(uint32_t mask) {
   return value;
 }
 
-UART0::UART0() : UART(0)
+UART_0::UART_0() : UART(0)
 {
 }
 
-void UART0::configure() {
+void UART_0::configure() {
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA); // UART0 will be on PA0 and PA1
   SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0); // for debugging
 
   GPIOPinConfigure(GPIO_PA0_U0RX);
   GPIOPinConfigure(GPIO_PA1_U0TX);
 
-  GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+  GPIOPinTypeUART(GPIOA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 }
 
-UART1::UART1() : UART(1)
+UART_1::UART_1() : UART(1)
 {
 }
 
-void UART1::configure() {
+void UART_1::configure() {
   SysCtlPeripheralReset(SYSCTL_PERIPH_UART1);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC); // UART1 Tx and RX
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOJ); // UART1 RTS/CTS
@@ -296,23 +358,134 @@ void UART1::configure() {
   GPIOPinConfigure(GPIO_PJ6_U1RTS);
   GPIOPinConfigure(GPIO_PJ3_U1CTS);
 
-  GPIOPinTypeUART(GPIO_PORTC_BASE, GPIO_PIN_6 | GPIO_PIN_7);
-  GPIOPinTypeUART(GPIO_PORTJ_BASE, GPIO_PIN_6 | GPIO_PIN_3);
+  GPIOPinTypeUART(GPIOC_BASE, GPIO_PIN_6 | GPIO_PIN_7);
+  GPIOPinTypeUART(GPIOJ_BASE, GPIO_PIN_6 | GPIO_PIN_3);
   UARTFlowControlSet((uint32_t) base, UART_FLOWCONTROL_TX | UART_FLOWCONTROL_RX);
 }
 
-SysTick::SysTick(uint32_t msec) :
+Systick::Systick(uint32_t msec) :
   msec(msec)
 {
 }
 
-void SysTick::configure() {
+void Systick::configure() {
   uint32_t clock = CPU::get_clock_rate();
 
   SysTickEnable();
   SysTickPeriodSet((clock/1000)*msec);
 }
 
-void SysTick::initialize() {
+void Systick::initialize() {
   SysTickIntEnable();
 }
+
+ADC::ADC(uint32_t n) {
+  switch (n) {
+  case 0 :
+    base = (void *) ADC0_BASE;
+    id = SYSCTL_PERIPH_ADC0;
+    interrupt = INT_ADC0;
+    break;
+
+  case 1 :
+    base = (void *) ADC1_BASE;
+    id = SYSCTL_PERIPH_ADC1;
+    interrupt = INT_ADC1;
+    break;
+  }
+}
+
+void ADC::configure_sequence(sequence seq, sequence_trigger trig, sequence priority) {
+  adc_register_map *reg = (adc_register_map *) base;
+  uint32_t shift = seq*4; // shift for the bits that control this sample sequence
+  
+  // trigger event for this sample sequence.
+  reg->EMUX = (reg->EMUX & ~(0xf << shift)) | (trig << shift);
+
+  // priority for this sample sequence
+  reg->SSPRI = (reg->SSPRI & ~(0xf << shift)) | (priority << shift);
+}
+
+
+void ADC::configure_step(sequence seq, unsigned int step,
+                         control sc, input is, comparator cs)
+{
+  adc_register_map *reg = (adc_register_map *) base;
+  uint32_t shift = step*4; // shift for the bits that control this sample sequence
+
+  // Set the analog mux value for this step.
+  reg->SS[seq].MUX = (reg->SS[seq].MUX & ~(0xf << shift)) | ((is & 0xf) << shift);
+
+  // Set the upper bits of the analog mux value for this step.
+  reg->SS[seq].EMUX = (reg->SS[seq].EMUX & ~(0xf << shift)) | ((is & 0xf00) << shift);
+
+  // Set the control value for this step.
+  reg->SS[seq].CTL = (reg->SS[seq].CTL & ~(0xf << shift)) | ((sc >> 4) << shift);
+
+  if (cs) {
+    // Program the comparator for the specified step.
+    reg->SS[seq].DC = (reg->SS[seq].DC & ~(0xf << shift)) | (((0x00070000 & cs) >> 16) << shift);
+    // Enable the comparator
+    reg->SS[seq].OP = reg->SS[seq].OP | (1 << shift);
+  } else {
+    // Disable the comparator
+    reg->SS[seq].OP = reg->SS[seq].OP & ~(1 << shift);
+  }
+}
+
+void ADC::set_sequence_enable(sequence seq, bool value) {
+  adc_register_map *reg = (adc_register_map *) base;
+  if (value) {
+    reg->ACTSS |= 1 << seq;
+  } else {
+    reg->ACTSS &= ~(1 << seq);
+  }
+}
+
+void ADC::clear_interrupt(sequence seq) {
+  adc_register_map *reg = (adc_register_map *) base;
+  reg->ISC = 1 << seq;
+}
+
+void ADC::processor_trigger(sequence seq, bool wait, bool signal) {
+  adc_register_map *reg = (adc_register_map *) base;
+  uint32_t value = 0;
+
+  if (wait) value |= WAIT;
+  if (signal) value |= SIGNAL;
+  value |= 1 << seq;
+
+  reg->PSSI |= value;
+}
+
+uint32_t ADC::get_interrupt_status(sequence seq, bool masked) {
+  adc_register_map *reg = (adc_register_map *) base;
+  uint32_t status;
+
+  if (masked) {
+    status = reg->ISC & (0x10001 << seq);
+  } else {
+    status = reg->RIS & (0x10000 | (1 << seq));
+    // if the comparator status bit is set, use the appropriate sequence bit
+    if (status & 0x10000) {
+      status |= 0xf0000;
+      status &= ~(0x10000 << seq);
+    }
+  }
+
+  return status;
+}
+
+uint32_t ADC::get_samples(sequence seq, uint32_t *buffer, uint32_t size) {
+  adc_register_map *reg = (adc_register_map *) base;
+  uint32_t count = 0;
+  while (count < size && !(reg->SS[seq].FSTAT & FSTAT_EMPTY)) {
+    *buffer++ = reg->SS[seq].FIFO;
+    count += 1;
+  }
+
+  return count;
+}
+
+
+
