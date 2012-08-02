@@ -24,6 +24,59 @@ ATT_Channel att_channel(pan1323);
 GAP_Service gap("Test Dev 1");
 GATT_Service gatt;
 
+class Temp {
+  ADC adc0;
+public:
+  Temp() : adc0(0) {}
+  void configure() { adc0.configure(); }
+  void initialize() {
+    adc0.initialize();
+    // use sequence 3 triggered by the processor (priority 0)
+    adc0.configure_sequence(ADC::SEQ_3, ADC::PROCESSOR, ADC::SEQ_0);
+
+    // there's only one step in the conversion process
+    // it reads from the internal temp sensor (TS), interrupts the CPU when it's done (IE)
+    // it's the last step in the seqeunce (END)
+    // it uses Channel 0, but has no comparator
+    adc0.configure_step(ADC::SEQ_3, 0, (ADC::control) (ADC::TS | ADC::IE | ADC::END), ADC::CH0, ADC::NO_CMP);
+
+    // enable the sequence
+    adc0.set_sequence_enable(ADC::SEQ_3, true);
+
+    // clear the interrupt before the first sample
+    adc0.clear_interrupt(ADC::SEQ_3);
+  }
+
+  int farenheit() {
+    uint32_t adc_samples[1], C, F;
+
+    // trigger a sample on sequence #3
+    adc0.processor_trigger(ADC::SEQ_3);
+
+    // wait for it to finish
+    while (!adc0.get_interrupt_status(ADC::SEQ_3, false));
+
+    // clear the interrupt flag
+    adc0.clear_interrupt(ADC::SEQ_3);
+
+    // read one sample
+    adc0.get_samples(ADC::SEQ_3, adc_samples, 1);
+
+    //
+    // Use non-calibrated conversion provided in the data sheet.  Make
+    // sure you divide last to avoid dropout.
+    //
+    C = ((1475 * 1023) - (2250 * adc_samples[0])) / 10230;
+
+    //
+    // Get fahrenheit value.  Make sure you divide last to avoid dropout.
+    //
+    F = ((C * 9) + 160) / 5;
+
+    return F;
+  }
+} internal_temperature;
+
 struct MyService : public Attribute<uint16_t> {
   Characteristic<char> char_1;
   Characteristic<char> char_2;
@@ -55,7 +108,9 @@ extern "C" int main() {
   //uart0.configure();
   uart1.configure();
   uart1.initialize();
-  adc_init();
+  internal_temperature.configure();
+  internal_temperature.initialize();
+
   systick.configure();
 
   //  UARTStdioInitExpClk(0, 115200); // UART0 is the console
@@ -89,7 +144,7 @@ uint32_t systick_counter = 0;
 
 extern "C" void __attribute__ ((isr)) systick_handler() {
   if (systick_counter++ == 10) {
-    int degrees = get_temperature_farenheit();
+    int degrees = internal_temperature.farenheit();
 
     debug("the temperature is %dF\n", degrees);
     systick_counter = 0;
