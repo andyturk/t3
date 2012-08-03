@@ -182,6 +182,10 @@ void IOPin::configure() {
     GPIOPinTypeUART((uint32_t) base, mask);
     break;
 
+  case ANALOG :
+    GPIOPinTypeADC((uint32_t) base, mask);
+    break;
+
   default :
     break;
   }

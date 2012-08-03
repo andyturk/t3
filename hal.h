@@ -42,7 +42,8 @@ class IOPin : public IOPort {
     INPUT,
     OUTPUT,
     LED,
-    UART
+    UART,
+    ANALOG
   } type;
 
   IOPin(char name, uint8_t pin, pin_type type);

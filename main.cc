@@ -7,7 +7,6 @@
 #include "h4.h"
 #include "att.h"
 #include "gatt.h"
-#include "adc.h"
 
 #ifdef DEBUG
 #include "screen.h"
@@ -77,6 +76,77 @@ public:
   }
 } internal_temperature;
 
+class ExternalVoltage {
+  IOPin pin;
+  ADC adc;
+  ADC::sequence seq;
+
+  union {
+    struct {
+      uint32_t voltage;
+      uint32_t temperature;
+    };
+    uint32_t samples[2];
+  } values;
+
+public:
+  ExternalVoltage() :
+    pin('B', 4, IOPin::ANALOG),
+    adc(0),
+    seq(ADC::SEQ_2)
+  {}
+
+  void configure() {
+    adc.configure();
+    pin.configure();
+  }
+
+  void initialize() {
+    adc.initialize();
+    pin.initialize();
+
+    // disable the sequence while we work on it
+    adc.set_sequence_enable(seq, false);
+
+    // use sequence 2 triggered by the processor (priority 0)
+    adc.configure_sequence(seq, ADC::PROCESSOR, ADC::SEQ_0);
+
+    // it reads from CH10 and interrupts the CPU when it's done (IE)
+    // it's the last step in the seqeunce (END)
+    // it uses Channel 0, but has no comparator
+    adc.configure_step(seq, 0, (ADC::control) 0,                              ADC::CH10, ADC::NO_CMP);
+    adc.configure_step(seq, 1, (ADC::control) (ADC::TS | ADC::IE | ADC::END), ADC::CH0,  ADC::NO_CMP);
+
+    // enable the sequence
+    adc.set_sequence_enable(seq, true);
+
+    // clear the interrupt before the first sample
+    adc.clear_interrupt(seq);
+  }
+
+  void collect_samples() {
+    // trigger a sample on sequence #3
+    adc.processor_trigger(seq);
+
+    // wait for it to finish
+    while (!adc.get_interrupt_status(seq, false));
+
+    // clear the interrupt flag
+    adc.clear_interrupt(seq);
+
+    // read one sample
+    adc.get_samples(seq, values.samples, 2);
+  }
+
+  int millivolts() {
+    return (values.voltage*3000)/0x3ff;
+  }
+
+  int degrees() {
+    return ((1475 * 1023) - (2250 * values.temperature)) / 10230;
+  }
+} knob;
+
 struct MyService : public Attribute<uint16_t> {
   Characteristic<char> char_1;
   Characteristic<char> char_2;
@@ -108,8 +178,10 @@ extern "C" int main() {
   //uart0.configure();
   uart1.configure();
   uart1.initialize();
-  internal_temperature.configure();
-  internal_temperature.initialize();
+  //internal_temperature.configure();
+  //internal_temperature.initialize();
+  knob.configure();
+  knob.initialize();
 
   systick.configure();
 
@@ -130,6 +202,8 @@ extern "C" int main() {
   systick.initialize();
 
   do {
+    led1.set_value(0);
+    //internal_temperature.farenheit();
     pan1323.process_incoming_packets();
     led1.set_value(1);
     asm volatile ("wfi");
@@ -144,10 +218,13 @@ uint32_t systick_counter = 0;
 
 extern "C" void __attribute__ ((isr)) systick_handler() {
   if (systick_counter++ == 10) {
-    int degrees = internal_temperature.farenheit();
-
-    debug("the temperature is %dF\n", degrees);
+    led1.set_value(0);
+    //int degrees = internal_temperature.farenheit();
+    //debug("the temperature is %dF\n", degrees);
+    knob.collect_samples();
+    debug("the voltage is %d, temp = %dC\n", knob.millivolts(), knob.degrees());
     systick_counter = 0;
+    led1.set_value(1);
   }
 }
 
